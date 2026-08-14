@@ -1,0 +1,25 @@
+{
+  "name": "hingu-tailors-erp",
+  "version": "2.0.0",
+  "description": "Hingu Tailors ERP - Smart Tailoring Management System (React + Tailwind CSS + Express.js)",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "tailwindcss": "^3.4.14"
+  },
+  "keywords": [
+    "tailor",
+    "erp",
+    "management",
+    "react",
+    "tailwind",
+    "express"
+  ],
+  "author": "Hingu Tailors",
+  "license": "MIT"
+}

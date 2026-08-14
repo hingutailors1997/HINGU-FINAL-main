@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 360">
+  <defs>
+    <style>
+      .r { fill: #C8102E; }
+      .b { fill: #0B3B61; }
+      .s { fill: none; stroke: #fff; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 18 16; }
+    </style>
+  </defs>
+  <rect width="360" height="360" rx="48" fill="#fff"/>
+  <path class="r" d="M80 70 C100 40 140 20 180 20 C240 20 280 60 280 120 V180 H220 V120 H180 V240 H120 V120 H80 Z"/>
+  <path class="b" d="M180 20 H300 C320 20 340 40 340 60 V180 H280 V240 H320 C335 240 348 253 348 268 V292 C348 312 332 328 312 328 H240 V264 H200 V328 H160 C140 328 124 312 124 292 V264 C124 246 138 232 156 232 H196 V180 H180 Z"/>
+  <path class="s" d="M180 20 H300 C320 20 340 40 340 60 V180 H280 V240 H320 C335 240 348 253 348 268 V292 C348 312 332 328 312 328 H240 V264 H200 V328 H160"/>
+</svg>

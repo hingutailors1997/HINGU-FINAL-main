@@ -1,0 +1,80 @@
+<svg viewBox="0 0 360 360" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .red { fill: #C8102E; }
+      .blue { fill: #0B3B61; }
+      .stitch { fill: none; stroke: #ffffff; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 18 18; }
+      .brand { font-family: 'Segoe UI', 'Arial', sans-serif; font-weight: 700; font-size: 46px; fill: #C8102E; }
+      .tagline { font-family: 'Georgia', serif; font-size: 32px; fill: #0B3B61; font-style: italic; }
+      .divider { fill: none; stroke: #0B3B61; stroke-width: 8; stroke-linecap: round; }
+    </style>
+  </defs>
+
+  <rect width="360" height="360" fill="transparent" />
+
+  <!-- Red H shape left -->
+  <path class="red" d="M80 180
+    C80 100 142 40 220 40
+    L220 90
+    H180
+    V170
+    H80
+    Z" />
+
+  <path class="red" d="M80 180
+    V280
+    C80 320 116 360 176 360
+    C198 360 218 345 234 322
+    H220
+    V200
+    H180
+    V280
+    H150
+    C130 280 115 260 115 240
+    V180
+    Z" />
+
+  <!-- Blue T shape right -->
+  <path class="blue" d="M220 40
+    H320
+    C340 40 355 55 355 75
+    V145
+    H280
+    V205
+    H342
+    V250
+    C342 275 325 295 300 305
+    H260
+    V310
+    C260 330 245 345 225 345
+    H210
+    C190 345 175 330 175 310
+    V205
+    H220
+    V75
+    H300
+    V75
+    H220
+    Z" />
+
+  <path class="stitch" d="M240 70
+    H330
+    C342 70 352 80 352 92
+    V116
+    H280
+    V150
+    H340
+    V188
+    C340 200 332 210 320 210
+    H280
+    V250
+    H312
+    C325 250 335 260 335 275
+    V292
+    C335 305 325 315 312 315
+    H240" />
+
+  <text x="180" y="295" text-anchor="middle" class="brand">HINGU TAILORS</text>
+  <path class="divider" d="M95 310 H265" />
+  <text x="180" y="345" text-anchor="middle" class="tagline">Class Of Wearing</text>
+</svg>

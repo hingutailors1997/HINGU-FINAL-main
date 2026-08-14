@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hingu Tailors ERP - Smart Tailoring Management System</title>
+  <meta name="description" content="Hingu Tailors ERP - Responsive Desktop & Mobile Smart Tailoring Management System built with React, Tailwind CSS, and Node.js / Express.">
+
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            outfit: ['Outfit', 'sans-serif'],
+          },
+          colors: {
+            navy: {
+              900: '#0A142F',
+              800: '#0F2147',
+              700: '#1B2A4A',
+              600: '#263A63',
+            },
+            gold: {
+              500: '#D4AF37',
+              600: '#B59226',
+              100: '#FFF9E6',
+            },
+            stat: {
+              incomeBg: '#E6F4EA',
+              incomeText: '#1E8E3E',
+              expenseBg: '#FCE8E6',
+              expenseText: '#D93025',
+              profitBg: '#E8F0FE',
+              profitText: '#1A73E8',
+              pendingBg: '#FEF7E0',
+              pendingText: '#B06000',
+              deliveryBg: '#E0F7FA',
+              deliveryText: '#00796B',
+              customersBg: '#F3E8FD',
+              customersText: '#9333EA',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons & Chart.js -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- React 18 & ReactDOM & Babel CDN for client execution -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen antialiased selection:bg-gold-500 selection:text-navy-900">
+
+  <!-- React Root Container -->
+  <div id="root"></div>
+
+  <!-- Data Engine & React Application Script -->
+  <script src="js/data.js"></script>
+  <script type="text/babel" src="js/react-app.jsx"></script>
+</body>
+</html>

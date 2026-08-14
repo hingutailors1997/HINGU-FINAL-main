@@ -1,0 +1,243 @@
+/**
+ * Hingu Tailors ERP - Data Layer & Storage Manager
+ */
+
+const STORAGE_KEYS = {
+  CUSTOMERS: 'hingu_erp_customers',
+  MEASUREMENTS: 'hingu_erp_measurements',
+  ORDERS: 'hingu_erp_orders',
+  STOCK: 'hingu_erp_stock',
+  TRANSACTIONS: 'hingu_erp_transactions',
+  STAFF: 'hingu_erp_staff',
+  SETTINGS: 'hingu_erp_settings'
+};
+
+// Initial Seed Data matching the screenshot metrics and mockups
+const SEED_DATA = {
+  settings: {
+    shopName: 'HINGU TAILORS ERP',
+    tagline: 'Smart Tailoring Management System',
+    phone: '+91 98765 43210',
+    address: 'Shop #4, Craftsman Market, Station Road, Ahmedabad',
+    currency: '₹',
+    privacyNote: '100% Private & Secure - Only for Hingu Tailors (You and 2-3 Staff Access Only)'
+  },
+
+  customers: [
+    { id: 'CUST-1001', name: 'Ramesh Sharma', mobile: '9876543210', address: '12, Shanti Nagar, SG Highway, Ahmedabad', joinedDate: '2024-01-15', totalOrders: 5 },
+    { id: 'CUST-1002', name: 'Suresh Kumar', mobile: '9825011223', address: '45, Sunrise Park, Bodakdev, Ahmedabad', joinedDate: '2024-02-10', totalOrders: 3 },
+    { id: 'CUST-1003', name: 'Mahesh Patel', mobile: '9909088776', address: '78, Gokul Society, Satellite, Ahmedabad', joinedDate: '2024-03-01', totalOrders: 8 },
+    { id: 'CUST-1004', name: 'Rajesh Mehta', mobile: '9723455443', address: '14, Green Acre, Vastrapur, Ahmedabad', joinedDate: '2024-03-20', totalOrders: 2 },
+    { id: 'CUST-1005', name: 'Amit Shah', mobile: '9898033445', address: '90, Ratnakar Complex, Prahlad Nagar', joinedDate: '2024-04-05', totalOrders: 4 },
+    { id: 'CUST-1006', name: 'Dharmesh Joshi', mobile: '9811223344', address: '302, Royal Residency, Navrangpura', joinedDate: '2024-04-12', totalOrders: 1 }
+  ],
+
+  measurements: {
+    'CUST-1001': {
+      type: 'Shirt',
+      shirt: { chest: '38', waist: '34', shoulder: '17', sleeveLength: '24.5', shirtLength: '27.5', collar: '15', pocket: 'Yes', notes: 'Regular Fit' },
+      pant: { length: '40', waist: '34', hip: '38', thigh: '24', bottom: '16', knee: '18', fly: '11', pocketStyle: 'Cross' }
+    },
+    'CUST-1002': {
+      type: 'Pant',
+      shirt: { chest: '40', waist: '36', shoulder: '18', sleeveLength: '25', shirtLength: '28', collar: '15.5', pocket: 'Yes', notes: 'Slim Fit' },
+      pant: { length: '39.5', waist: '32', hip: '36', thigh: '23', bottom: '15.5', knee: '17.5', fly: '10.5', pocketStyle: 'Side' }
+    },
+    'CUST-1003': {
+      type: 'Suit',
+      shirt: { chest: '42', waist: '38', shoulder: '18.5', sleeveLength: '25.5', shirtLength: '29', collar: '16', pocket: 'No', notes: 'Comfort Fit' },
+      pant: { length: '41', waist: '36', hip: '40', thigh: '25', bottom: '16.5', knee: '18.5', fly: '11.5', pocketStyle: 'Cross' }
+    }
+  },
+
+  orders: [
+    {
+      id: 'ORD-1001',
+      customerId: 'CUST-1001',
+      customerName: 'Ramesh Sharma',
+      item: 'Shirt',
+      fabric: 'Raymond - Black',
+      orderDate: '2024-05-14',
+      trialDate: '2024-05-17',
+      deliveryDate: '2024-05-20',
+      totalAmount: 1500,
+      advance: 500,
+      balance: 1000,
+      status: 'Stitching',
+      notes: 'Double stitch collar, regular fit'
+    },
+    {
+      id: 'ORD-1002',
+      customerId: 'CUST-1002',
+      customerName: 'Suresh Kumar',
+      item: 'Pant',
+      fabric: 'Siyaram - Grey',
+      orderDate: '2024-05-12',
+      trialDate: '2024-05-14',
+      deliveryDate: '2024-05-16',
+      totalAmount: 1200,
+      advance: 600,
+      balance: 600,
+      status: 'Ready',
+      notes: 'Cross pocket, narrow bottom'
+    },
+    {
+      id: 'ORD-1003',
+      customerId: 'CUST-1003',
+      customerName: 'Mahesh Patel',
+      item: 'Suit',
+      fabric: 'Suiting - Navy',
+      orderDate: '2024-05-10',
+      trialDate: '2024-05-16',
+      deliveryDate: '2024-05-18',
+      totalAmount: 4500,
+      advance: 1500,
+      balance: 3000,
+      status: 'Pending',
+      notes: '2-button blazer, satin lining'
+    },
+    {
+      id: 'ORD-1004',
+      customerId: 'CUST-1004',
+      customerName: 'Rajesh Mehta',
+      item: 'Kurta',
+      fabric: 'Linen - White',
+      orderDate: '2024-05-08',
+      trialDate: '2024-05-11',
+      deliveryDate: '2024-05-13',
+      totalAmount: 1100,
+      advance: 500,
+      balance: 600,
+      status: 'Delivered',
+      notes: 'Mandarin collar, side pockets'
+    }
+  ],
+
+  stock: [
+    { id: 'FAB-101', name: 'Raymond - Black', sku: 'RAY-BLK', meters: 25.50, pricePerMeter: 120.00, category: 'Suiting', color: '#1A1A1A', image: 'file:///C:/Users/Admin/.gemini/antigravity/brain/10bcf93a-5e30-4f35-b0ff-7843a936417a/fabric_raymond_black_1785208800479.png' },
+    { id: 'FAB-102', name: 'Linen - White', sku: 'LIN-WHT', meters: 18.75, pricePerMeter: 150.00, category: 'Shirting', color: '#F8F9FA', image: 'file:///C:/Users/Admin/.gemini/antigravity/brain/10bcf93a-5e30-4f35-b0ff-7843a936417a/fabric_linen_white_1785208817489.png' },
+    { id: 'FAB-103', name: 'Cotton - Blue', sku: 'COT-BLU', meters: 30.00, pricePerMeter: 110.00, category: 'Shirting', color: '#3B82F6', image: 'file:///C:/Users/Admin/.gemini/antigravity/brain/10bcf93a-5e30-4f35-b0ff-7843a936417a/fabric_cotton_blue_1785208831136.png' },
+    { id: 'FAB-104', name: 'Siyaram - Grey', sku: 'SIY-GRY', meters: 22.25, pricePerMeter: 130.00, category: 'Suiting', color: '#6B7280', image: '' },
+    { id: 'FAB-105', name: 'Suiting - Navy', sku: 'SUIT-NAV', meters: 15.50, pricePerMeter: 160.00, category: 'Suiting', color: '#1E3A8A', image: '' }
+  ],
+
+  transactions: [
+    { id: 'TXN-101', type: 'Income', category: 'Order Advance', subLedger: 'UPI Payments', amount: 500, date: '2024-05-14', description: 'Advance for ORD-1001 (Ramesh Sharma)' },
+    { id: 'TXN-102', type: 'Income', category: 'Order Payment', subLedger: 'Cash Book', amount: 600, date: '2024-05-14', description: 'Full clearance for ORD-1004 (Rajesh Mehta)' },
+    { id: 'TXN-103', type: 'Expense', category: 'Materials', subLedger: 'Expenses', amount: 450, date: '2024-05-14', description: 'Premium buttons & thread spools' },
+    { id: 'TXN-104', type: 'Expense', category: 'Salary', subLedger: 'Salary', amount: 1500, date: '2024-05-13', description: 'Weekly wage payout for Tailor Kishor' },
+    { id: 'TXN-105', type: 'Income', category: 'Order Payment', subLedger: 'UPI Payments', amount: 7350, date: '2024-05-14', description: 'Bulk corporate order payment' },
+    { id: 'TXN-106', type: 'Expense', category: 'Shop Expense', subLedger: 'Expenses', amount: 400, date: '2024-05-14', description: 'Steam iron maintenance & tea' }
+  ],
+
+  staff: [
+    { id: 'STF-01', name: 'Babubhai Hingu', role: 'Master Cutter & Owner', phone: '9876543210', wageRate: '₹300/piece', assignedOrders: 4 },
+    { id: 'STF-02', name: 'Kishor Bhai', role: 'Shirt Specialist', phone: '9822334455', wageRate: '₹180/shirt', assignedOrders: 6 },
+    { id: 'STF-03', name: 'Vikram Tailor', role: 'Trouser Specialist', phone: '9899887766', wageRate: '₹160/pant', assignedOrders: 5 },
+    { id: 'STF-04', name: 'Mohan Helper', role: 'Ironing & Finishing', phone: '9711223344', wageRate: '₹50/piece', assignedOrders: 8 }
+  ]
+};
+
+// Database Engine Object
+const DB = {
+  init() {
+    if (!localStorage.getItem(STORAGE_KEYS.CUSTOMERS)) {
+      this.save(STORAGE_KEYS.CUSTOMERS, SEED_DATA.customers);
+      this.save(STORAGE_KEYS.MEASUREMENTS, SEED_DATA.measurements);
+      this.save(STORAGE_KEYS.ORDERS, SEED_DATA.orders);
+      this.save(STORAGE_KEYS.STOCK, SEED_DATA.stock);
+      this.save(STORAGE_KEYS.TRANSACTIONS, SEED_DATA.transactions);
+      this.save(STORAGE_KEYS.STAFF, SEED_DATA.staff);
+      this.save(STORAGE_KEYS.SETTINGS, SEED_DATA.settings);
+    }
+  },
+
+  get(key) {
+    try {
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : null;
+    } catch (e) {
+      console.error('Error reading from localStorage:', e);
+      return null;
+    }
+  },
+
+  save(key, data) {
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+      console.error('Error saving to localStorage:', e);
+    }
+  },
+
+  resetToDefault() {
+    localStorage.clear();
+    this.init();
+  },
+
+  // Helpers
+  getCustomers() { return this.get(STORAGE_KEYS.CUSTOMERS) || []; },
+  saveCustomer(cust) {
+    const list = this.getCustomers();
+    const existingIdx = list.findIndex(c => c.id === cust.id);
+    if (existingIdx >= 0) {
+      list[existingIdx] = cust;
+    } else {
+      list.unshift(cust);
+    }
+    this.save(STORAGE_KEYS.CUSTOMERS, list);
+    return cust;
+  },
+
+  getMeasurements(customerId) {
+    const all = this.get(STORAGE_KEYS.MEASUREMENTS) || {};
+    return all[customerId] || null;
+  },
+
+  saveMeasurements(customerId, data) {
+    const all = this.get(STORAGE_KEYS.MEASUREMENTS) || {};
+    all[customerId] = data;
+    this.save(STORAGE_KEYS.MEASUREMENTS, all);
+  },
+
+  getOrders() { return this.get(STORAGE_KEYS.ORDERS) || []; },
+  saveOrder(order) {
+    const list = this.getOrders();
+    const existingIdx = list.findIndex(o => o.id === order.id);
+    if (existingIdx >= 0) {
+      list[existingIdx] = order;
+    } else {
+      list.unshift(order);
+    }
+    this.save(STORAGE_KEYS.ORDERS, list);
+    return order;
+  },
+
+  getStock() { return this.get(STORAGE_KEYS.STOCK) || []; },
+  saveStockItem(item) {
+    const list = this.getStock();
+    const existingIdx = list.findIndex(s => s.id === item.id);
+    if (existingIdx >= 0) {
+      list[existingIdx] = item;
+    } else {
+      list.unshift(item);
+    }
+    this.save(STORAGE_KEYS.STOCK, list);
+    return item;
+  },
+
+  getTransactions() { return this.get(STORAGE_KEYS.TRANSACTIONS) || []; },
+  saveTransaction(txn) {
+    const list = this.getTransactions();
+    list.unshift(txn);
+    this.save(STORAGE_KEYS.TRANSACTIONS, list);
+    return txn;
+  },
+
+  getStaff() { return this.get(STORAGE_KEYS.STAFF) || []; },
+  getSettings() { return this.get(STORAGE_KEYS.SETTINGS) || SEED_DATA.settings; },
+  saveSettings(sets) { this.save(STORAGE_KEYS.SETTINGS, sets); }
+};
+
+// Initialize DB immediately
+DB.init();

@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= invoice.invoiceNumber %> - Invoice</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; color: #222; }
+    .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+    header { display:flex; justify-content:space-between; align-items:center; }
+    .company { text-align:right }
+    h1 { margin:0; }
+    .meta, .addresses { margin-top: 18px; display:flex; justify-content:space-between }
+    .items { width:100%; border-collapse:collapse; margin-top:18px }
+    .items th, .items td { border:1px solid #e5e7eb; padding:8px; text-align:left }
+    .totals { margin-top:18px; width:100%; display:flex; justify-content:flex-end }
+    .totals table { border-collapse:collapse }
+    .totals td { padding:6px 12px }
+    .notes { margin-top:24px; font-size:12px; color:#555 }
+    .small { font-size:11px; color:#666 }
+    .logo { height:60px }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <img src="https://res.cloudinary.com/demo/image/upload/w_160,h_80,c_fit/sample.jpg" alt="logo" class="logo" />
+        <div class="small">GSTIN: <%= company.gstin %></div>
+      </div>
+      <div class="company">
+        <h1>Invoice</h1>
+        <div><strong><%= invoice.invoiceNumber %></strong></div>
+        <div class="small">Issue Date: <%= new Date(invoice.issueDate).toLocaleDateString() %></div>
+        <div class="small">Due Date: <%= invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : '-' %></div>
+      </div>
+    </header>
+
+    <div class="meta">
+      <div>
+        <strong>Billed To</strong>
+        <div><%= customer.firstName %> <%= customer.lastName || '' %></div>
+        <div class="small"><%= customer.address?.line1 || '' %></div>
+        <div class="small"><%= customer.mobile || '' %> | <%= customer.email || '' %></div>
+      </div>
+      <div style="text-align:right">
+        <strong><%= company.name %></strong>
+        <div class="small"><%= company.addressLine1 %></div>
+        <div class="small"><%= company.addressLine2 %></div>
+        <div class="small">Phone: <%= company.phone %></div>
+      </div>
+    </div>
+
+    <table class="items">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Description</th>
+          <th>Qty</th>
+          <th>Rate</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (order.items && order.items.length) { %>
+          <% order.items.forEach(function(it, idx){ %>
+            <tr>
+              <td><%= idx + 1 %></td>
+              <td><%= it.description || it.garmentType || it.fabricName || 'Item' %></td>
+              <td><%= it.quantity || it.meters || 1 %></td>
+              <td><%= (it.unitPrice || it.price || it.rate || 0).toFixed(2) %></td>
+              <td><%= (it.totalPrice || (it.unitPrice || it.price || 0) * (it.quantity || 1)).toFixed(2) %></td>
+            </tr>
+          <% }) %>
+        <% } else { %>
+          <tr><td colspan="5">No line items found on order.</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+
+    <div class="totals">
+      <table>
+        <tr><td class="small">Subtotal</td><td>₹ <%= Number(invoice.subtotal || 0).toFixed(2) %></td></tr>
+        <tr><td class="small">Discount</td><td>₹ <%= Number(invoice.discountAmount || 0).toFixed(2) %></td></tr>
+        <tr><td class="small">Tax</td><td>₹ <%= Number(invoice.taxAmount || 0).toFixed(2) %></td></tr>
+        <tr><td><strong>Total</strong></td><td><strong>₹ <%= Number(invoice.totalAmount || 0).toFixed(2) %></strong></td></tr>
+      </table>
+    </div>
+
+    <div class="notes">
+      <strong>Notes</strong>
+      <div>Thank you for your business. Please make payments to the account mentioned above. This is a system generated invoice.</div>
+    </div>
+  </div>
+</body>
+</html>
