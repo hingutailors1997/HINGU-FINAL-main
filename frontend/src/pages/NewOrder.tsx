@@ -362,7 +362,7 @@ export default function NewOrder() {
                       // Optionally auto-fill unit price when garment is selected
                       const selectedRate = rateMasters.find((rm: any) => rm.garmentName === e.target.value);
                       if (selectedRate) {
-                        setValue(`items.${index}.unitPrice`, String(selectedRate.rate));
+                        setValue(`items.${index}.unitPrice`, String(selectedRate.defaultSellingPrice || selectedRate.rate || 0));
                       }
                       // Pre-fill measurements
                       let targetCustomerId = watch('clientType') === 'corporate' ? watchItems[index]?.employeeId : watch('customerId');
@@ -411,7 +411,10 @@ export default function NewOrder() {
                         
                       const savedGarment = activeList.find((m: any) => m.garmentType === selectedProfile);
                       if (savedGarment && savedGarment.measurements) {
-                        setValue(`items.${index}.measurements`, savedGarment.measurements);
+                        const filledMeasurements = Object.fromEntries(
+                          Object.entries(savedGarment.measurements).filter(([_, v]) => v !== '' && v != null)
+                        );
+                        setValue(`items.${index}.measurements`, filledMeasurements);
                       } else {
                         // Revert to default for the current garmentType
                         const currentGarment = watchItems[index]?.garmentType;
@@ -510,31 +513,80 @@ export default function NewOrder() {
                 </div>
 
                 {/* Garment Measurements Grid */}
-                {watchItems[index]?.garmentType && GARMENT_REGISTRY[watchItems[index].garmentType] && (
+                {watchItems[index]?.garmentType && (
                   <div className="md:col-span-12 mt-4 space-y-3 p-4 bg-white rounded-lg border border-slate-200">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Scissors className="h-4 w-4 text-[#2563EB]" />
-                      <h4 className="text-sm font-bold text-slate-800">{watchItems[index].garmentType} Measurements</h4>
-                      <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-bold ml-2">Will sync to profile</span>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Scissors className="h-4 w-4 text-[#2563EB]" />
+                        <h4 className="text-sm font-bold text-slate-800">{watchItems[index].garmentType} Measurements</h4>
+                        <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-bold ml-2 hidden sm:inline-block">Will sync to profile</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const customKey = window.prompt("Enter new measurement name (e.g., Height, Shoulder Angle):");
+                          if (customKey && customKey.trim()) {
+                            const key = customKey.trim().toLowerCase().replace(/\s+/g, '_');
+                            const currentMeasurements = watchItems[index].measurements || {};
+                            setValue(`items.${index}.measurements`, {
+                              ...currentMeasurements,
+                              [key]: ''
+                            });
+                          }
+                        }}
+                        className="text-[10px] font-bold text-primary hover:text-primary/80 bg-primary/10 px-2 py-1 rounded-md transition-colors"
+                      >
+                        + Add Custom
+                      </button>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                      {(GARMENT_REGISTRY[watchItems[index].garmentType]?.requiredParameters || []).map((paramId: string) => {
-                        const param = ANATOMICAL_PARAMETERS[paramId] || { label: paramId };
-                        return (
-                          <div key={paramId} className="space-y-1">
-                            <label className="text-[10px] font-bold text-slate-600 tracking-wide uppercase">{param.label}</label>
-                            <div className="relative">
-                              <input
-                                type="text"
-                                {...register(`items.${index}.measurements.${paramId}` as const)}
-                                className="w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:bg-white transition-all"
-                              />
-                              <span className="absolute right-2 top-1.5 text-[10px] font-bold text-slate-400 select-none">in</span>
+                    {watchItems[index]?.measurements && Object.keys(watchItems[index].measurements).length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3">
+                        {Object.keys(watchItems[index].measurements).map((paramId: string) => {
+                          const param = ANATOMICAL_PARAMETERS[paramId] || { label: paramId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), description: '' };
+                          return (
+                            <div key={paramId} className="relative group bg-slate-50/70 p-3 rounded-xl border border-slate-200/80 hover:border-blue-300 transition-colors focus-within:border-[#2563EB] focus-within:bg-white focus-within:shadow-xs space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <label className="text-xs font-black text-slate-900 tracking-tight block truncate pr-6" title={param.label}>{param.label}</label>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (window.confirm(`Remove ${param.label}?`)) {
+                                      const currentMeasurements = { ...watchItems[index].measurements };
+                                      delete currentMeasurements[paramId];
+                                      setValue(`items.${index}.measurements`, currentMeasurements);
+                                    }
+                                  }}
+                                  className="absolute right-2 top-2 text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="Remove parameter"
+                                >
+                                  &times;
+                                </button>
+                                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 bg-slate-200/80 text-slate-600 rounded">
+                                  INCH
+                                </span>
+                              </div>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  step="0.25"
+                                  {...register(`items.${index}.measurements.${paramId}` as const)}
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563EB] transition-all"
+                                />
+                              </div>
+                              {param.description && (
+                                <p className="text-[10px] text-slate-500 leading-snug line-clamp-2" title={param.description}>
+                                  {param.description}
+                                </p>
+                              )}
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 bg-slate-50 rounded border border-dashed border-slate-200">
+                        <p className="text-xs text-slate-500">No measurements specified. Select a Base Spec above or add custom measurements.</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

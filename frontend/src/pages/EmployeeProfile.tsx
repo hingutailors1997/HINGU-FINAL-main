@@ -278,7 +278,7 @@ export default function EmployeeProfile() {
                   onClick={() => {
                     const defaultRate = activeRates.length > 0 ? activeRates[0] : null;
                     const initialQty = 1;
-                    const initialRate = defaultRate ? Number(defaultRate.rate) : 0;
+                    const initialRate = defaultRate ? Number(defaultRate.employeePieceRate) : 0;
                     const initialTotal = initialQty * initialRate;
                     setWorkData({
                       date: new Date().toISOString().split('T')[0],
@@ -384,10 +384,10 @@ export default function EmployeeProfile() {
                       required 
                       value={workData.rateMasterId} 
                       onChange={e => {
-                        const rateItem = activeRates.find((r: any) => r._id === e.target.value);
+                        const rateItem = activeRates.find((rm: any) => rm._id === e.target.value);
                         if (!rateItem) return;
                         const qty = workData.quantity || 1;
-                        const rateSnap = Number(rateItem.rate) || 0;
+                        const rateSnap = Number(rateItem.employeePieceRate) || 0;
                         const totalVal = qty * rateSnap;
                         setWorkData({
                           ...workData,
@@ -413,7 +413,7 @@ export default function EmployeeProfile() {
                           {!workData.rateMasterId && <option value="">Select Product...</option>}
                           {activeRates.map((r: any) => (
                             <option key={r._id} value={r._id}>
-                              {r.category} → {r.garmentName} ({r.variant || 'Standard'}) - ₹{r.rate}
+                              {r.category} → {r.garmentName} ({r.variant || 'Standard'}) - ₹{r.employeePieceRate}
                             </option>
                           ))}
                         </>

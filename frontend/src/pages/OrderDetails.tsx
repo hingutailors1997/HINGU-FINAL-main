@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { fetchOrderById, deleteOrder, generateShareLink, updateOrderStatus, fetchCustomerById, fetchMeasurements } from '../lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { fetchOrderById, deleteOrder, generateShareLink, updateOrderStatus, fetchCustomerById, fetchMeasurements, updateOrder } from '../lib/api';
 import { useToast } from '../components/Toast';
 import { 
   ArrowLeft, ShoppingBag, Edit, Trash2, MessageCircle, Calendar, 
-  User, Phone, Scissors, IndianRupee, Clock, CheckCircle2, AlertTriangle, Truck, Printer
+  User, Phone, Scissors, IndianRupee, Clock, CheckCircle2, AlertTriangle, Truck, Printer, X
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -15,11 +15,41 @@ export default function OrderDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState<number | ''>('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
   
   const { data: order, isLoading, error } = useQuery({
     queryKey: ['order', id],
     queryFn: () => fetchOrderById(id as string),
     enabled: !!id
+  });
+
+  const paymentMutation = useMutation({
+    mutationFn: async () => {
+      if (!order || !paymentAmount) return;
+      const newAdvance = (order.advancePaid || 0) + Number(paymentAmount);
+      return await updateOrder(order._id, { 
+        advancePaid: newAdvance,
+        paymentMethod: paymentMethod,
+        totalAmount: order.totalAmount,
+        discount: order.discount
+      });
+    },
+    onSuccess: () => {
+      showToast('Payment recorded successfully', 'success');
+      setIsPaymentModalOpen(false);
+      setPaymentAmount('');
+      queryClient.invalidateQueries({ queryKey: ['order', id] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+    },
+    onError: () => {
+      showToast('Failed to record payment', 'error');
+    }
   });
 
   const handleWhatsAppShare = async () => {
@@ -28,7 +58,11 @@ export default function OrderDetails() {
       const data = await generateShareLink(order._id);
       if (data && data.phone) {
         const encodedText = encodeURIComponent(data.whatsappText);
-        window.open(`https://api.whatsapp.com/send?phone=${data.phone}&text=${encodedText}`, '_blank');
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const waLink = isIOS 
+          ? `whatsapp://send?phone=${data.phone}&text=${encodedText}` 
+          : `https://wa.me/${data.phone}?text=${encodedText}`;
+        window.open(waLink, '_blank');
       } else {
         showToast('No WhatsApp number found for this customer.', 'error');
       }
@@ -81,7 +115,33 @@ export default function OrderDetails() {
       try {
         const measurementsData = await fetchMeasurements(targetId);
         if (measurementsData && measurementsData.active) {
-          const match = measurementsData.active.find((m: any) => m.garmentType.toLowerCase() === (item.garmentType || '').toLowerCase());
+          let match = measurementsData.active.find((m: any) => m.garmentType.toLowerCase() === (item.garmentType || '').toLowerCase());
+          
+          if (!match) {
+            const lowerGarment = (item.garmentType || '').toLowerCase();
+            const fuzzyMap: Record<string, string> = {
+              'shirt': 'Shirt',
+              'pant': 'Pant',
+              'kurta': 'Kurta',
+              'sherwani': 'Sherwani',
+              'blazer': 'Blazer',
+              'coat': 'Coat',
+              'suit': 'Suit',
+              'waistcoat': 'Waistcoat',
+              'jacket': 'Jacket',
+              't-shirt': 'T-Shirt',
+              'safari': 'Safari',
+              'pathani': 'Pathani'
+            };
+            
+            for (const [key, baseType] of Object.entries(fuzzyMap)) {
+              if (lowerGarment.includes(key)) {
+                match = measurementsData.active.find((m: any) => m.garmentType === baseType);
+                if (match) break;
+              }
+            }
+          }
+
           if (match && match.measurements) {
             activeMeasurements = match.measurements;
           }
@@ -146,6 +206,7 @@ export default function OrderDetails() {
   const isDelivered = ['Delivered', 'Completed'].includes(order.currentStage);
 
   return (
+    <>
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       {/* Header Actions */}
       <div className="flex items-center justify-between">
@@ -308,10 +369,12 @@ export default function OrderDetails() {
                     <div className="text-sm font-medium text-slate-700 bg-white p-3 rounded border shadow-sm">
                       {item.measurements && Object.keys(item.measurements).length > 0 ? (
                         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                          {Object.entries(item.measurements).map(([key, val]) => (
+                          {Object.entries(item.measurements)
+                            .filter(([_, val]) => val !== '' && val != null)
+                            .map(([key, val]) => (
                             <div key={key} className="flex justify-between items-center border-b border-slate-100 pb-1">
                               <span className="text-slate-500 text-xs capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                              <strong className="text-slate-800">{String(val) || '-'}</strong>
+                              <strong className="text-slate-800">{String(val)}</strong>
                             </div>
                           ))}
                         </div>
@@ -360,20 +423,102 @@ export default function OrderDetails() {
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
           </div>
         </div>
-        <div className={cn("rounded-xl border shadow-sm p-5 flex items-center justify-between", order.balanceAmount > 0 ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200")}>
-          <div>
-            <p className={cn("text-xs font-bold uppercase tracking-wider", order.balanceAmount > 0 ? "text-amber-700/70" : "text-emerald-700/70")}>
-              Remaining Balance
-            </p>
-            <p className={cn("text-xl font-black mt-1", order.balanceAmount > 0 ? "text-amber-700" : "text-emerald-700")}>
-              ₹{(order.balanceAmount || 0).toLocaleString()}
-            </p>
+        <div className={cn("rounded-xl border shadow-sm p-5 flex flex-col justify-center", order.balanceAmount > 0 ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200")}>
+          <div className="flex items-center justify-between w-full">
+            <div>
+              <p className={cn("text-xs font-bold uppercase tracking-wider", order.balanceAmount > 0 ? "text-amber-700/70" : "text-emerald-700/70")}>
+                Remaining Balance
+              </p>
+              <p className={cn("text-xl font-black mt-1", order.balanceAmount > 0 ? "text-amber-700" : "text-emerald-700")}>
+                ₹{(order.balanceAmount || 0).toLocaleString()}
+              </p>
+            </div>
+            <div className={cn("h-10 w-10 rounded-full flex items-center justify-center", order.balanceAmount > 0 ? "bg-amber-100 text-amber-600" : "bg-emerald-100 text-emerald-600")}>
+              {order.balanceAmount > 0 ? <AlertTriangle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+            </div>
           </div>
-          <div className={cn("h-10 w-10 rounded-full flex items-center justify-center", order.balanceAmount > 0 ? "bg-amber-100 text-amber-600" : "bg-emerald-100 text-emerald-600")}>
-            {order.balanceAmount > 0 ? <AlertTriangle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
-          </div>
+          {order.balanceAmount > 0 && (
+            <button 
+              onClick={() => setIsPaymentModalOpen(true)}
+              className="mt-4 w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5"
+            >
+              <IndianRupee className="w-3.5 h-3.5" /> Record New Payment
+            </button>
+          )}
         </div>
       </div>
     </div>
+
+      {/* Payment Modal */}
+      {isPaymentModalOpen && order && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-card rounded-xl shadow-xl overflow-hidden animate-in slide-in-from-bottom-4">
+            <div className="flex items-center justify-between p-4 border-b bg-muted/20">
+              <h2 className="font-semibold text-lg flex items-center gap-2">
+                <IndianRupee className="w-5 h-5 text-amber-600" /> Record Payment
+              </h2>
+              <button onClick={() => setIsPaymentModalOpen(false)} className="p-1 hover:bg-muted rounded-md transition-colors text-muted-foreground">
+                <span className="sr-only">Close</span>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="grid grid-cols-2 gap-4 mb-2 p-4 bg-muted/30 rounded-lg">
+                <div>
+                  <p className="text-xs text-muted-foreground font-semibold">Total Amount</p>
+                  <p className="font-bold">₹{order.totalAmount?.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground font-semibold">Remaining Balance</p>
+                  <p className="font-bold text-amber-600">₹{order.balanceAmount?.toLocaleString()}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Payment Amount Received (₹)</label>
+                <input
+                  type="number"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="0.00"
+                  max={order.balanceAmount}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Payment Method</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="UPI">UPI (GPay/PhonePe)</option>
+                  <option value="Card">Card</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t bg-muted/10 flex justify-end gap-2">
+              <button
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="px-4 py-2 border rounded-md text-sm font-medium hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => paymentMutation.mutate()}
+                disabled={!paymentAmount || paymentAmount <= 0 || paymentAmount > order.balanceAmount || paymentMutation.isPending}
+                className="px-4 py-2 bg-amber-600 text-white rounded-md text-sm font-bold hover:bg-amber-700 transition-colors disabled:opacity-50"
+              >
+                {paymentMutation.isPending ? 'Saving...' : 'Confirm Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

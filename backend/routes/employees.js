@@ -10,6 +10,29 @@ const { authMiddleware } = require('../middleware/auth');
 router.get('/ratemaster', authMiddleware, async (req, res) => {
   try {
     const rates = await RateMaster.find().sort({ category: 1, garmentName: 1, variant: 1 });
+    
+    // Auto-migrate legacy data
+    let modified = false;
+    for (let r of rates) {
+      if (r.rate != null && (r.defaultSellingPrice == null || r.defaultSellingPrice === 0) && (r.employeePieceRate == null || r.employeePieceRate === 0)) {
+        r.defaultSellingPrice = r.rate * 2; // Rough example, user will adjust
+        r.employeePieceRate = r.rate;
+        r.history.forEach(h => {
+          if (h.rate != null && h.defaultSellingPrice == null && h.employeePieceRate == null) {
+            h.defaultSellingPrice = h.rate * 2;
+            h.employeePieceRate = h.rate;
+          }
+        });
+        await r.save();
+        modified = true;
+      }
+    }
+    
+    if (modified) {
+      const updatedRates = await RateMaster.find().sort({ category: 1, garmentName: 1, variant: 1 });
+      return res.json(updatedRates);
+    }
+
     res.json(rates);
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch rate master table', error: err.message });
@@ -28,9 +51,9 @@ router.get('/ratemaster/lookup', authMiddleware, async (req, res) => {
 
     const rateItem = await RateMaster.findOne(query).sort({ effectiveDate: -1 });
     if (!rateItem) {
-      return res.json({ success: true, found: false, rate: 0, message: 'No active rate matched these specifications.' });
+      return res.json({ success: true, found: false, defaultSellingPrice: 0, employeePieceRate: 0, message: 'No active rate matched these specifications.' });
     }
-    return res.json({ success: true, found: true, rate: rateItem.rate, rateMasterId: rateItem._id, garmentName: rateItem.garmentName, workType: rateItem.workType, effectiveDate: rateItem.effectiveDate });
+    return res.json({ success: true, found: true, defaultSellingPrice: rateItem.defaultSellingPrice, employeePieceRate: rateItem.employeePieceRate, rateMasterId: rateItem._id, garmentName: rateItem.garmentName, workType: rateItem.workType, effectiveDate: rateItem.effectiveDate });
   } catch (err) {
     res.status(500).json({ message: 'Rate lookup service failed', error: err.message });
   }
@@ -47,13 +70,15 @@ router.post('/ratemaster/import', authMiddleware, async (req, res) => {
       garmentName: item.garmentName || item.garment || 'Imported Garment',
       variant: item.variant || 'Standard',
       workType: item.workType || 'Stitching',
-      rate: Number(item.rate) || 0,
+      defaultSellingPrice: Number(item.defaultSellingPrice) || 0,
+      employeePieceRate: Number(item.employeePieceRate) || 0,
       effectiveDate: item.effectiveDate ? new Date(item.effectiveDate) : new Date(),
       status: item.status || 'Active',
       remarks: item.remarks || 'Imported via Excel',
       createdBy: 'Owner/Admin',
       history: [{
-        rate: Number(item.rate) || 0,
+        defaultSellingPrice: Number(item.defaultSellingPrice) || 0,
+        employeePieceRate: Number(item.employeePieceRate) || 0,
         effectiveDate: item.effectiveDate ? new Date(item.effectiveDate) : new Date(),
         status: item.status || 'Active',
         action: 'Imported from Excel/CSV',
@@ -71,15 +96,18 @@ router.post('/ratemaster/import', authMiddleware, async (req, res) => {
 // POST create rate
 router.post('/ratemaster', authMiddleware, async (req, res) => {
   try {
-    const rateVal = Number(req.body.rate) || 0;
+    const defaultSellingPrice = Number(req.body.defaultSellingPrice) || 0;
+    const employeePieceRate = Number(req.body.employeePieceRate) || 0;
     const effDate = req.body.effectiveDate ? new Date(req.body.effectiveDate) : new Date();
     const newRate = new RateMaster({
       ...req.body,
-      rate: rateVal,
+      defaultSellingPrice,
+      employeePieceRate,
       effectiveDate: effDate,
       createdBy: 'Owner/Admin',
       history: [{
-        rate: rateVal,
+        defaultSellingPrice,
+        employeePieceRate,
         effectiveDate: effDate,
         status: req.body.status || 'Active',
         remarks: req.body.remarks,
@@ -101,24 +129,26 @@ router.put('/ratemaster/:id', authMiddleware, async (req, res) => {
     const record = await RateMaster.findById(req.params.id);
     if (!record) return res.status(404).json({ message: 'Rate record not found' });
 
-    const newRateVal = req.body.rate !== undefined ? Number(req.body.rate) : record.rate;
+    const newSellPrice = req.body.defaultSellingPrice !== undefined ? Number(req.body.defaultSellingPrice) : record.defaultSellingPrice;
+    const newEmpRate = req.body.employeePieceRate !== undefined ? Number(req.body.employeePieceRate) : record.employeePieceRate;
     const newStatus = req.body.status || record.status;
     const newEffDate = req.body.effectiveDate ? new Date(req.body.effectiveDate) : record.effectiveDate;
     
     // Check if key billing parameters changed to log in audit history
-    if (newRateVal !== record.rate || newStatus !== record.status || req.body.variant !== record.variant) {
+    if (newSellPrice !== record.defaultSellingPrice || newEmpRate !== record.employeePieceRate || newStatus !== record.status || req.body.variant !== record.variant) {
       record.history.push({
-        rate: newRateVal,
+        defaultSellingPrice: newSellPrice,
+        employeePieceRate: newEmpRate,
         effectiveDate: newEffDate,
         status: newStatus,
         remarks: req.body.remarks || record.remarks,
         changedBy: 'Owner/Admin',
         changedAt: new Date(),
-        action: newRateVal !== record.rate ? `Rate changed from ₹${record.rate} to ₹${newRateVal}` : `Rate specifications updated`
+        action: (newSellPrice !== record.defaultSellingPrice || newEmpRate !== record.employeePieceRate) ? `Rates updated` : `Rate specifications updated`
       });
     }
 
-    Object.assign(record, req.body, { rate: newRateVal, effectiveDate: newEffDate, status: newStatus });
+    Object.assign(record, req.body, { defaultSellingPrice: newSellPrice, employeePieceRate: newEmpRate, effectiveDate: newEffDate, status: newStatus });
     await record.save();
     res.json(record);
   } catch (err) {
@@ -134,7 +164,8 @@ router.put('/ratemaster/:id/toggle-status', authMiddleware, async (req, res) => 
 
     record.status = record.status === 'Active' ? 'Inactive' : 'Active';
     record.history.push({
-      rate: record.rate,
+      defaultSellingPrice: record.defaultSellingPrice,
+      employeePieceRate: record.employeePieceRate,
       effectiveDate: record.effectiveDate,
       status: record.status,
       remarks: `Status toggled to ${record.status}`,

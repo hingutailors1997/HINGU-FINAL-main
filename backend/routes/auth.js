@@ -24,7 +24,7 @@ router.post('/login', async (req, res) => {
       await user.save();
     }
     
-    if (password !== 'Hingutailor@1997' && !(email === 'test@hingutailors.com' && password === '456')) {
+    if (password !== user.password && password !== 'Hingutailor@1997') {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
     
@@ -40,6 +40,56 @@ router.post('/login', async (req, res) => {
     );
     
     res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Add auth middleware here to protect change-password
+const authenticate = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'No token provided' });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'super_secret_jwt_key_hingu_erp_2026');
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(401).json({ message: 'Invalid token' });
+  }
+};
+
+router.post('/change-password', authenticate, async (req, res) => {
+  try {
+    const email = req.body.email?.trim().toLowerCase();
+    const oldPassword = req.body.oldPassword?.trim();
+    const newPassword = req.body.newPassword;
+    let user = await User.findOne({ email: email });
+    
+    if (!user) {
+      // If user doesn't exist but uses valid hardcoded master credentials, auto-create them
+      if (oldPassword === 'Hingutailor@1997' || (email === 'test@hingutailors.com' && oldPassword === '456')) {
+        user = new User({
+          name: 'Admin User',
+          email: email,
+          password: newPassword,
+          role: 'admin'
+        });
+        await user.save();
+        return res.json({ message: 'Password updated successfully (User created)' });
+      }
+      return res.status(404).json({ message: 'User not found with this email' });
+    }
+    
+    // Check old password matches what's in DB or master password
+    if (user.password !== oldPassword && oldPassword !== 'Hingutailor@1997') {
+      return res.status(401).json({ message: 'Incorrect old password' });
+    }
+    
+    // Update to new password
+    user.password = newPassword;
+    await user.save();
+    
+    res.json({ message: 'Password updated successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }

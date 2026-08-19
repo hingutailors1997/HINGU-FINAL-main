@@ -80,13 +80,17 @@ const RateMasterSchema = new mongoose.Schema({
   garmentName: { type: String, required: true },
   variant: { type: String, default: 'Standard' },
   workType: { type: String, required: true, default: 'Stitching' },
-  rate: { type: Number, required: true },
+  rate: { type: Number }, // Legacy field for migration
+  defaultSellingPrice: { type: Number, required: true, default: 0 },
+  employeePieceRate: { type: Number, required: true, default: 0 },
   effectiveDate: { type: Date, default: Date.now },
   status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
   remarks: { type: String },
   createdBy: { type: String, default: 'Owner/Admin' },
   history: [{
-    rate: { type: Number, required: true },
+    rate: { type: Number }, // Legacy
+    defaultSellingPrice: { type: Number },
+    employeePieceRate: { type: Number },
     effectiveDate: { type: Date, default: Date.now },
     status: { type: String },
     remarks: { type: String },

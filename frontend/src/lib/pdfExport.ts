@@ -2,6 +2,56 @@ import { getLogoBase64, getSignatureBase64 } from './pdf/logoLoader';
 import { fetchSettings } from './api';
 import { parseAddress } from './pdf/pdfUtils';
 
+function renderTextToImage(text: string, maxWidth: number = 800): { dataUrl: string, width: number, height: number } | null {
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    
+    const font = '16px "Segoe UI", Arial, sans-serif';
+    ctx.font = font;
+    
+    const lines: string[] = [];
+    const rawLines = text.split('\n');
+    
+    rawLines.forEach(rawLine => {
+      const words = rawLine.split(' ');
+      let currentLine = words[0] || '';
+      for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const width = ctx.measureText(currentLine + " " + word).width;
+        if (width < maxWidth) {
+          currentLine += " " + word;
+        } else {
+          lines.push(currentLine);
+          currentLine = word;
+        }
+      }
+      lines.push(currentLine);
+    });
+    
+    const lineHeight = 24;
+    canvas.width = maxWidth;
+    canvas.height = lines.length * lineHeight + 10;
+    
+    ctx.fillStyle = 'rgba(255, 255, 255, 0)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.font = font;
+    ctx.fillStyle = '#475569';
+    ctx.textBaseline = 'top';
+    
+    lines.forEach((line, index) => {
+      ctx.fillText(line, 0, index * lineHeight + 5);
+    });
+    
+    return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
+  } catch (err) {
+    console.error("Canvas rendering failed", err);
+    return null;
+  }
+}
+
 export const generateDashboardPDF = async (
   orders: any[], 
   transactions: any[], 
@@ -292,7 +342,9 @@ export const generateCustomerMeasurementPDF = async (customer: any, measurements
       Object.entries(measMap).forEach(([key, val]) => {
         if (key === '_notes' || val === undefined || val === '') return;
         const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        rows.push([formattedKey, typeof val === 'number' ? `${val} in (${Math.round(val * 2.54 * 10) / 10} cm)` : String(val)]);
+        const strVal = String(val).trim();
+        const hasUnit = /[a-zA-Z]/.test(strVal);
+        rows.push([formattedKey, hasUnit ? strVal : `${strVal} in`]);
       });
 
       if (rows.length > 0) {
@@ -319,11 +371,20 @@ export const generateCustomerMeasurementPDF = async (customer: any, measurements
           doc.addPage();
           currentY = 20;
         }
-        doc.setFontSize(10);
-        doc.setTextColor(71, 85, 105);
-        const splitNotes = doc.splitTextToSize(`Master Tailor Remarks: ${notes}`, 180);
-        doc.text(splitNotes, 14, currentY);
-        currentY += (splitNotes.length * 6) + 8;
+        
+        const imgObj = renderTextToImage(`Master Tailor Remarks: ${notes}`, 800);
+        if (imgObj) {
+          const targetWidth = 180;
+          const targetHeight = (imgObj.height / imgObj.width) * targetWidth;
+          doc.addImage(imgObj.dataUrl, 'PNG', 14, currentY, targetWidth, targetHeight);
+          currentY += targetHeight + 8;
+        } else {
+          doc.setFontSize(10);
+          doc.setTextColor(71, 85, 105);
+          const splitNotes = doc.splitTextToSize(`Master Tailor Remarks: ${notes}`, 180);
+          doc.text(splitNotes, 14, currentY);
+          currentY += (splitNotes.length * 6) + 8;
+        }
       }
       currentY += 8;
     }

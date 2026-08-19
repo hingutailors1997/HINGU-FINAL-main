@@ -29,7 +29,11 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
   const [showConfetti, setShowConfetti] = useState(false);
 
   const garmentSpec = useMemo(() => GARMENT_REGISTRY[activeGarment] || GARMENT_REGISTRY['Custom'], [activeGarment]);
-  const allowedIds = useMemo(() => garmentSpec.requiredParameters || [], [garmentSpec]);
+  const allowedIds = useMemo(() => {
+    const baseIds = garmentSpec.requiredParameters || [];
+    const customIds = Object.keys(currentValues).filter(k => k !== '_notes' && !baseIds.includes(k));
+    return [...baseIds, ...customIds];
+  }, [garmentSpec, currentValues]);
 
   const { data: measurementData, isLoading: isMeasLoading } = useQuery({
     queryKey: ['measurements', customerId],
@@ -243,6 +247,19 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
               {/* Controls: Unit Toggle & Reset */}
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
+                  onClick={() => {
+                    const customKey = window.prompt("Enter new measurement name (e.g., Height, Shoulder Angle):");
+                    if (customKey && customKey.trim()) {
+                      const key = customKey.trim().toLowerCase().replace(/\s+/g, '_');
+                      handleValueChange(key, '');
+                    }
+                  }}
+                  className="p-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold px-3"
+                  title="Add Custom Measurement"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add Custom
+                </button>
+                <button
                   onClick={handleResetToDefaults}
                   title="Reset to Sample Defaults"
                   className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-600 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold px-3"
@@ -268,11 +285,27 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
                 }
 
                 return (
-                  <div key={id} className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 hover:border-blue-300 transition-colors focus-within:border-[#2563EB] focus-within:bg-white focus-within:shadow-xs space-y-2">
+                  <div key={id} className="relative group bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 hover:border-blue-300 transition-colors focus-within:border-[#2563EB] focus-within:bg-white focus-within:shadow-xs space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <label htmlFor={`meas_${id}`} className="text-xs font-black text-slate-900 tracking-tight block">
+                      <label htmlFor={`meas_${id}`} className="text-xs font-black text-slate-900 tracking-tight block truncate pr-6" title={param.label}>
                         {param.label}
                       </label>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Remove ${param.label}?`)) {
+                            setCurrentValues(prev => {
+                              const next = { ...prev };
+                              delete next[id];
+                              return next;
+                            });
+                            setHasUnsavedChanges(true);
+                          }
+                        }}
+                        className="absolute right-2 top-2 text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remove parameter"
+                      >
+                        &times;
+                      </button>
                       <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 bg-slate-200/80 text-slate-600 rounded">
                         {unit}
                       </span>

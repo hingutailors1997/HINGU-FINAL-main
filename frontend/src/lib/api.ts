@@ -60,6 +60,11 @@ export const login = async (credentials: { email: string, password: string, role
   return data;
 };
 
+export const changePassword = async (data: { email: string, oldPassword: string, newPassword: string }) => {
+  const response = await api.post('/auth/change-password', data);
+  return response.data;
+};
+
 // Customer APIs
 export const fetchCustomers = async () => {
   const { data } = await api.get('/customers');

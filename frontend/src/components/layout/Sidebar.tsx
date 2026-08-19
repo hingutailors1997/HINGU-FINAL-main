@@ -22,12 +22,6 @@ export default function Sidebar({ isMobileOpen, onClose }: { isMobileOpen?: bool
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('user');
-    navigate('/login');
-  };
-
   return (
     <>
       {isMobileOpen && (
@@ -76,16 +70,6 @@ export default function Sidebar({ isMobileOpen, onClose }: { isMobileOpen?: bool
           })}
         </nav>
         
-        <div className="px-4 mt-auto pt-4">
-          <button
-            onClick={handleLogout}
-            type="button"
-            className="flex items-center w-full gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-all duration-200 cursor-pointer"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Logout</span>
-          </button>
-        </div>
       </div>
       </aside>
     </>

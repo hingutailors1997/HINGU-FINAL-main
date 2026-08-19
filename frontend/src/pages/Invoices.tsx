@@ -138,14 +138,17 @@ export default function Invoices() {
       const data = await generateShareLink(orderId);
       if (data) {
         const { whatsappText, phone } = data;
-        
-        if (!phone) {
+        if (!phone) {
           showToast('No WhatsApp number found for this customer.', 'error');
           return;
         }
 
         const encodedText = encodeURIComponent(whatsappText);
-        window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`, '_blank');
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const waLink = isIOS 
+          ? `whatsapp://send?phone=${phone}&text=${encodedText}` 
+          : `https://wa.me/${phone}?text=${encodedText}`;
+        window.open(waLink, '_blank');
       }
     } catch (err) {
       console.error(err);

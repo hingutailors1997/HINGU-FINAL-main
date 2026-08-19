@@ -55,7 +55,11 @@ export default function Orders() {
         }
 
         const encodedText = encodeURIComponent(whatsappText);
-        window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`, '_blank');
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const waLink = isIOS 
+          ? `whatsapp://send?phone=${phone}&text=${encodedText}` 
+          : `https://wa.me/${phone}?text=${encodedText}`;
+        window.open(waLink, '_blank');
       }
     } catch (err) {
       console.error(err);

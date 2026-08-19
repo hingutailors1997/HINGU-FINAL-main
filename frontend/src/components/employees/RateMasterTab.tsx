@@ -36,7 +36,8 @@ export default function RateMasterTab() {
     garmentName: '',
     variant: 'Standard',
     workType: 'Stitching',
-    rate: 100,
+    defaultSellingPrice: 500,
+    employeePieceRate: 100,
     effectiveDate: new Date().toISOString().split('T')[0],
     status: 'Active',
     remarks: ''
@@ -127,7 +128,8 @@ export default function RateMasterTab() {
       garmentName: item.garmentName || '',
       variant: item.variant || 'Standard',
       workType: item.workType || 'Stitching',
-      rate: item.rate || 0,
+      defaultSellingPrice: item.defaultSellingPrice || 0,
+      employeePieceRate: item.employeePieceRate || 0,
       effectiveDate: item.effectiveDate ? new Date(item.effectiveDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       status: item.status || 'Active',
       remarks: item.remarks || ''
@@ -143,7 +145,8 @@ export default function RateMasterTab() {
       garmentName: `${item.garmentName} (Copy)`,
       variant: item.variant || 'Standard',
       workType: item.workType || 'Stitching',
-      rate: item.rate || 0,
+      defaultSellingPrice: item.defaultSellingPrice || 0,
+      employeePieceRate: item.employeePieceRate || 0,
       effectiveDate: new Date().toISOString().split('T')[0],
       status: 'Active',
       remarks: `Duplicated from ${item.garmentName}`
@@ -178,13 +181,14 @@ export default function RateMasterTab() {
       toast('No data available to export', 'error');
       return;
     }
-    const headers = ['Category', 'Garment Name', 'Variant / Design', 'Work Type', 'Rate Per Piece (INR)', 'Effective From', 'Status', 'Created By', 'Updated On', 'Remarks'];
+    const headers = ['Category', 'Garment Name', 'Variant / Design', 'Work Type', 'Customer Selling Price (INR)', 'Employee Piece Rate (INR)', 'Effective From', 'Status', 'Created By', 'Updated On', 'Remarks'];
     const rows = filteredAndSortedRates.map((item: any) => [
       item.category,
       item.garmentName,
       item.variant,
       item.workType,
-      item.rate,
+      item.defaultSellingPrice,
+      item.employeePieceRate,
       item.effectiveDate ? new Date(item.effectiveDate).toLocaleDateString() : '',
       item.status,
       item.createdBy || 'Owner/Admin',
@@ -221,13 +225,14 @@ export default function RateMasterTab() {
         // skip line 0 assuming header
         for (let i = 1; i < lines.length; i++) {
           const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-          if (cols.length >= 5 && cols[0] && cols[1]) {
+          if (cols.length >= 6 && cols[0] && cols[1]) {
             importedItems.push({
               category: cols[0],
               garmentName: cols[1],
               variant: cols[2] || 'Standard',
               workType: cols[3] || 'Stitching',
-              rate: Number(cols[4]) || 100,
+              defaultSellingPrice: Number(cols[4]) || 500,
+              employeePieceRate: Number(cols[5]) || 100,
               effectiveDate: cols[5] ? new Date(cols[5]) : new Date(),
               status: (cols[6] === 'Inactive') ? 'Inactive' : 'Active',
               remarks: cols[9] || 'Imported from Excel/CSV'
@@ -257,7 +262,8 @@ export default function RateMasterTab() {
         (item.garmentName && item.garmentName.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (item.variant && item.variant.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (item.workType && item.workType.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        String(item.rate).includes(searchTerm);
+        String(item.defaultSellingPrice).includes(searchTerm) ||
+        String(item.employeePieceRate).includes(searchTerm);
 
       const matchesCategory = categoryFilter === 'All' || item.category === categoryFilter;
       const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
@@ -266,15 +272,23 @@ export default function RateMasterTab() {
       return matchesSearch && matchesCategory && matchesStatus && matchesWorkType;
     });
 
-    return list.sort((a: any, b: any) => {
-      if (sortBy === 'Newest') return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-      if (sortBy === 'Oldest') return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
-      if (sortBy === 'Highest Rate') return (b.rate || 0) - (a.rate || 0);
-      if (sortBy === 'Lowest Rate') return (a.rate || 0) - (b.rate || 0);
-      // Default: Alphabetical by Category then Garment Name
-      if (a.category !== b.category) return (a.category || '').localeCompare(b.category || '');
-      return (a.garmentName || '').localeCompare(b.garmentName || '');
-    });
+    if (sortBy === 'Newest') {
+      list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    } else if (sortBy === 'Oldest') {
+      list.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+    } else if (sortBy === 'Alphabetical') {
+      list.sort((a, b) => a.garmentName.localeCompare(b.garmentName));
+    } else if (sortBy === 'Highest Rate') {
+      list.sort((a, b) => (b.defaultSellingPrice || 0) - (a.defaultSellingPrice || 0));
+    } else if (sortBy === 'Lowest Rate') {
+      list.sort((a, b) => (a.defaultSellingPrice || 0) - (b.defaultSellingPrice || 0));
+    } else {
+      list.sort((a: any, b: any) => {
+        if (a.category !== b.category) return (a.category || '').localeCompare(b.category || '');
+        return (a.garmentName || '').localeCompare(b.garmentName || '');
+      });
+    }
+    return list;
   }, [rates, searchTerm, categoryFilter, statusFilter, workTypeFilter, sortBy]);
 
   const categories = ['Shirt', 'Pant', 'Kurta', 'Sherwani', 'Blazer', 'Coat', 'Waistcoat', 'Jacket', 'Custom'];
@@ -409,7 +423,8 @@ export default function RateMasterTab() {
                 <th className="px-5 py-3.5 font-semibold">Garment Name</th>
                 <th className="px-5 py-3.5 font-semibold">Variant / Design</th>
                 <th className="px-5 py-3.5 font-semibold">Work Type</th>
-                <th className="px-5 py-3.5 font-semibold text-right">Rate / Piece (₹)</th>
+                <th className="px-5 py-3.5 font-semibold text-right">Customer Price (₹)</th>
+                <th className="px-5 py-3.5 font-semibold text-right">Tailor Rate (₹)</th>
                 <th className="px-5 py-3.5 font-semibold">Effective From</th>
                 <th className="px-5 py-3.5 font-semibold">Status</th>
                 <th className="px-5 py-3.5 font-semibold">Updated On</th>
@@ -461,8 +476,11 @@ export default function RateMasterTab() {
                     <td className="px-5 py-3.5 font-medium text-slate-700">
                       {item.workType || 'Stitching'}
                     </td>
+                    <td className="px-5 py-3.5 text-right font-black text-sky-700 text-base">
+                      ₹{(item.defaultSellingPrice || 0).toLocaleString()}
+                    </td>
                     <td className="px-5 py-3.5 text-right font-black text-emerald-700 text-base">
-                      ₹{(item.rate || 0).toLocaleString()}
+                      ₹{(item.employeePieceRate || 0).toLocaleString()}
                     </td>
                     <td className="px-5 py-3.5 text-xs text-muted-foreground font-medium">
                       {item.effectiveDate ? new Date(item.effectiveDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Immediate'}
@@ -589,6 +607,42 @@ export default function RateMasterTab() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                {/* Customer Selling Price (₹) * */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-sky-800 uppercase tracking-wider">Customer Selling Price (₹) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-500">₹</span>
+                    <input 
+                      required 
+                      type="number" 
+                      min="0" 
+                      step="1"
+                      value={formData.defaultSellingPrice} 
+                      onChange={e => setFormData({ ...formData, defaultSellingPrice: Number(e.target.value) })} 
+                      className="w-full rounded-lg border border-sky-300 bg-sky-50/20 pl-8 pr-3 py-2 text-sm font-black text-sky-900 focus:border-sky-600"
+                    />
+                  </div>
+                </div>
+
+                {/* Employee Piece Rate (₹) * */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">Tailor Piece Rate (₹) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-500">₹</span>
+                    <input 
+                      required 
+                      type="number" 
+                      min="0" 
+                      step="1"
+                      value={formData.employeePieceRate} 
+                      onChange={e => setFormData({ ...formData, employeePieceRate: Number(e.target.value) })} 
+                      className="w-full rounded-lg border border-emerald-300 bg-emerald-50/20 pl-8 pr-3 py-2 text-sm font-black text-emerald-900 focus:border-emerald-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 {/* Variant / Design */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Variant / Design</label>
@@ -603,23 +657,6 @@ export default function RateMasterTab() {
                   <datalist id="variant-suggestions">
                     {variantSuggestions.map(v => <option key={v} value={v} />)}
                   </datalist>
-                </div>
-
-                {/* Rate Per Piece (₹) * */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Rate Per Piece (₹) *</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-500">₹</span>
-                    <input 
-                      required 
-                      type="number" 
-                      min="0" 
-                      step="1"
-                      value={formData.rate} 
-                      onChange={e => setFormData({ ...formData, rate: Number(e.target.value) })} 
-                      className="w-full rounded-lg border border-emerald-300 bg-emerald-50/20 pl-8 pr-3 py-2 text-sm font-black text-emerald-900 focus:border-emerald-600"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -714,9 +751,14 @@ export default function RateMasterTab() {
                           <History className="h-4 w-4 text-blue-600" />
                           {h.action || 'Rate modification recorded'}
                         </span>
-                        <span className="font-black text-emerald-700 text-sm bg-emerald-100/60 px-2.5 py-0.5 rounded">
-                          ₹{(h.rate || selectedRateForHistory.rate).toLocaleString()}
-                        </span>
+                        <div className="flex gap-2">
+                          <span className="font-black text-sky-700 text-sm bg-sky-100/60 px-2.5 py-0.5 rounded" title="Customer Price">
+                            ₹{(h.defaultSellingPrice || selectedRateForHistory.defaultSellingPrice).toLocaleString()}
+                          </span>
+                          <span className="font-black text-emerald-700 text-sm bg-emerald-100/60 px-2.5 py-0.5 rounded" title="Tailor Rate">
+                            ₹{(h.employeePieceRate || selectedRateForHistory.employeePieceRate).toLocaleString()}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
                         <span>Effective Date: <strong className="text-slate-700">{h.effectiveDate ? new Date(h.effectiveDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Immediate'}</strong></span>

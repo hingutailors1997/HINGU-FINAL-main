@@ -105,6 +105,7 @@ export default function Dashboard() {
   const pendingOrders = orders.filter((o: any) => o.status !== 'Delivered' && o.status !== 'Cancelled').length;
   const readyOrders = orders.filter((o: any) => o.status === 'Ready').length;
   const avgOrderValue = orders.length > 0 ? Math.round(totalSales / orders.length) : 0;
+  const netProfit = totalSales - totalExpenses;
   
   // Compute chart data dynamically
   const typeCount: Record<string, number> = {};
@@ -376,8 +377,9 @@ export default function Dashboard() {
         </div>
       )}
       {/* KPI Grid - Massive Array */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4 xl:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
         <KPICard title="Total Sales" value={`₹${totalSales.toLocaleString()}`} change="" trend="up" icon={DollarSign} color="primary" />
+        <KPICard title="Net Profit" value={`₹${netProfit.toLocaleString()}`} change="" trend={netProfit >= 0 ? "up" : "down"} icon={Activity} color={netProfit >= 0 ? "emerald" : "rose"} />
         <KPICard title="Total Orders" value={orders.length} change="" trend="up" icon={ShoppingBag} color="primary" />
         <KPICard title="Avg Order Value" value={`₹${avgOrderValue.toLocaleString()}`} change="" trend="up" icon={CreditCard} color="primary" />
         <KPICard title="Customers" value={customers.length} change="" trend="up" icon={Users} color="primary" />
