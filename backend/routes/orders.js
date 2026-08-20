@@ -121,7 +121,7 @@ router.get('/tailor-workload', authMiddleware, async (req, res, next) => {
 
     const orders = await Order.find(matchQuery)
       .select('-totalAmount -balanceAmount -advancePaid -payments -discount -tax -invoice -items.unitPrice -items.totalPrice -items.accessories.unitCost')
-      .populate('customerId', 'firstName lastName mobile')
+      .populate('customerId', 'fullName mobile')
       .populate('assignedTailorId', 'name email role')
       .sort({ dueDate: 1 });
 
@@ -202,7 +202,7 @@ router.get('/:idOrBarcode', authMiddleware, async (req, res, next) => {
     const order = await Order.findOne(query)
       .populate('customerId')
       .populate('companyGroupId')
-      .populate('items.employeeId', 'fullName firstName lastName mobile')
+      .populate('items.employeeId', 'fullName mobile')
       .populate('assignedTailorId', 'name email role')
       .populate('items.fabricId');
     if (!order) return sendError(res, 404, 'Order not found');
@@ -232,7 +232,7 @@ router.get('/:id/invoice', authMiddleware, async (req, res, next) => {
 // POST generate or retrieve shareable link for WhatsApp
 router.post('/:id/share', authMiddleware, async (req, res, next) => {
   try {
-    const order = await Order.findById(req.params.id).populate('customerId', 'firstName lastName mobile');
+    const order = await Order.findById(req.params.id).populate('customerId', 'fullName mobile');
     if (!order) return sendError(res, 404, 'Order not found');
 
     let token = order.shareToken;
@@ -253,7 +253,7 @@ router.post('/:id/share', authMiddleware, async (req, res, next) => {
     let clientUrl = 'https://hingutailors.vercel.app';
     const shareUrl = `${clientUrl}/share/${token}`;
     
-    const customerName = order.customerName || order.customerId?.firstName || 'Customer';
+    const customerName = order.customerName || order.customerId?.fullName || 'Customer';
     const message = `Hello ${customerName},
 
 Thank you for choosing Hingu Tailors.
@@ -393,6 +393,7 @@ router.post('/', authMiddleware, async (req, res, next) => {
     // Generate Financial Transaction if Advance was paid
     if (advancePaid > 0) {
       const tx = new Transaction({
+        transactionNumber: `TX-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         type: 'Income',
         amount: advancePaid,
         category: 'Order Advance Payment',
@@ -535,7 +536,7 @@ router.put('/:id', authMiddleware, async (req, res, next) => {
     const balanceAmount = totalAmount - (Number(req.body.discount) || 0) - advancePaid;
     
     // Check old order to record any newly added payments into the ledger
-    const oldOrder = await Order.findById(req.params.id).populate('customerId', 'firstName lastName');
+    const oldOrder = await Order.findById(req.params.id).populate('customerId', 'fullName');
     if (!oldOrder) return sendError(res, 404, 'Order not found');
     
     const oldAdvance = oldOrder.advancePaid || 0;
@@ -550,8 +551,9 @@ router.put('/:id', authMiddleware, async (req, res, next) => {
     
     // Generate Financial Transaction if extra payment was collected
     if (paymentDiff > 0) {
-      const customerName = oldOrder.customerId ? oldOrder.customerId.firstName : 'Customer';
+      const customerName = oldOrder.customerId ? oldOrder.customerId.fullName : 'Customer';
       const tx = new Transaction({
+        transactionNumber: `TX-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         type: 'Income',
         amount: paymentDiff,
         category: 'Order Payment',
