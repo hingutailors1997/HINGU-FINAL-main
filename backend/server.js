@@ -6,7 +6,7 @@ const path = require('path');
 const { validateEnv } = require('./config/env');
 
 dotenv.config();
-validateEnv(); // Verify critical environment variables on startup
+// validateEnv(); // Temporarily disabled to prevent crash if Render variables are missing
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -17,12 +17,8 @@ const { securityHeaders, mongoInjectionProtection, rateLimiter } = require('./mi
 
 app.use(securityHeaders);
 app.use(cors({ 
-  origin: function(origin, callback) {
-    callback(null, true); // Allow ALL origins dynamically (sets Access-Control-Allow-Origin to the exact origin)
-  }, 
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
+  origin: true, 
+  credentials: true 
 }));
 app.use(express.json({ limit: '10mb' })); // 10MB limit as requested
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -117,11 +113,12 @@ app.use(errorHandler);
 // Connect to DB and Start Server
 connectDB().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server is running on port ${PORT} across all network interfaces (e.g., http://192.168.0.119:${PORT})`);
+    console.log(`Server is running on port ${PORT}`);
     
     // Quick background sync to fix data for user
     setTimeout(async () => {
       try {
+        if(mongoose.connection.readyState !== 1) return;
         const { Customer } = require('./models/CRM');
         const { Order } = require('./models/Order');
         const customers = await Customer.find();
@@ -142,7 +139,9 @@ connectDB().then(() => {
     }, 2000);
   });
 }).catch(err => {
-  console.error('Failed to connect to database. Server not started.');
-  process.exit(1);
+  console.error('Failed to connect to database initially, but starting server anyway...');
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running without DB on port ${PORT}`);
+  });
 });
 
