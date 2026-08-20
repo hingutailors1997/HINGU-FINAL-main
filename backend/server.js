@@ -17,15 +17,12 @@ const { securityHeaders, mongoInjectionProtection, rateLimiter } = require('./mi
 
 app.use(securityHeaders);
 app.use(cors({ 
-  origin: (origin, callback) => {
-    // Allow local network devices (192.168.x.x, 10.x.x.x, localhost, etc.) for seamless mobile device testing
-    if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('192.168.') || origin.includes('10.') || origin === process.env.CLIENT_URL) {
-      callback(null, true);
-    } else {
-      callback(null, true);
-    }
+  origin: function(origin, callback) {
+    callback(null, true); // Allow ALL origins dynamically (sets Access-Control-Allow-Origin to the exact origin)
   }, 
-  credentials: true 
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
 }));
 app.use(express.json({ limit: '10mb' })); // 10MB limit as requested
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
