@@ -8,6 +8,19 @@ import './index.css'
 
 const queryClient = new QueryClient()
 
+// Auto-reload the page if a chunk fails to load (e.g. after a new deployment on Vercel)
+window.addEventListener('vite:preloadError', (event) => {
+  window.location.reload();
+});
+
+// Also catch uncaught promise rejections for dynamic import failures
+window.addEventListener('unhandledrejection', (event) => {
+  if (event.reason && event.reason.message && event.reason.message.includes('Failed to fetch dynamically imported module')) {
+    event.preventDefault();
+    window.location.reload();
+  }
+});
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
