@@ -254,6 +254,27 @@ export const deleteFabric = async (idOrBarcode: string) => {
   return data;
 };
 
+// Supplier Bills APIs
+export const fetchSupplierBills = async () => {
+  const { data } = await api.get('/stock/bills');
+  return data;
+};
+
+export const createSupplierBill = async (billData: any) => {
+  const { data } = await api.post('/stock/bills', billData);
+  return data;
+};
+
+export const recordBillPayment = async (id: string, paymentData: any) => {
+  const { data } = await api.post(`/stock/bills/${id}/pay`, paymentData);
+  return data;
+};
+
+export const checkDueBills = async () => {
+  const { data } = await api.get('/stock/bills/check-due');
+  return data;
+};
+
 // Order APIs (Phase 4: Configurable Workflow Engine & Tailor Suite)
 export const fetchWorkflowStages = async () => {
   const { data } = await api.get('/orders/stages');

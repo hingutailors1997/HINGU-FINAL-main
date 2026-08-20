@@ -114,8 +114,16 @@ export default function OrderDetails() {
     if (!hasValidMeasurements && targetId) {
       try {
         const measurementsData = await fetchMeasurements(targetId);
-        if (measurementsData && measurementsData.active) {
-          let match = measurementsData.active.find((m: any) => m.garmentType.toLowerCase() === (item.garmentType || '').toLowerCase());
+        let match = null;
+
+        // 1. First attempt to use the exact historical version locked to this order
+        if (measurementsData && measurementsData.history && item.measurementVersionId) {
+          match = measurementsData.history.find((m: any) => m._id === item.measurementVersionId);
+        }
+
+        // 2. Fallback to active measurements if no specific version was linked
+        if (!match && measurementsData && measurementsData.active) {
+          match = measurementsData.active.find((m: any) => m.garmentType.toLowerCase() === (item.garmentType || '').toLowerCase());
           
           if (!match) {
             const lowerGarment = (item.garmentType || '').toLowerCase();
@@ -141,10 +149,10 @@ export default function OrderDetails() {
               }
             }
           }
+        }
 
-          if (match && match.measurements) {
-            activeMeasurements = match.measurements;
-          }
+        if (match && match.measurements) {
+          activeMeasurements = match.measurements;
         }
       } catch (err) {
         console.error("Failed to fetch latest customer measurements:", err);
@@ -419,8 +427,22 @@ export default function OrderDetails() {
             <p className="text-xs font-bold text-emerald-600/70 uppercase tracking-wider">Advance Paid</p>
             <p className="text-xl font-black mt-1 text-emerald-600">₹{(order.advancePaid || 0).toLocaleString()}</p>
           </div>
-          <div className="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+          <div className="flex items-center gap-2">
+            {order.advancePaid > 0 && (
+              <button 
+                onClick={() => {
+                  setPaymentAmount(-(order.advancePaid || 0));
+                  setIsPaymentModalOpen(true);
+                }}
+                className="h-10 w-10 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-full flex items-center justify-center transition-colors"
+                title="Undo Payment (Refund)"
+              >
+                <Trash2 className="w-4 h-4 text-rose-600" />
+              </button>
+            )}
+            <div className="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            </div>
           </div>
         </div>
         <div className={cn("rounded-xl border shadow-sm p-5 flex flex-col justify-center", order.balanceAmount > 0 ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200")}>
@@ -475,7 +497,7 @@ export default function OrderDetails() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Payment Amount Received (₹)</label>
+                <label className="block text-sm font-medium mb-1">{Number(paymentAmount) < 0 ? 'Refund / Reversal Amount (₹)' : 'Payment Amount Received (₹)'}</label>
                 <input
                   type="number"
                   value={paymentAmount}
@@ -483,7 +505,9 @@ export default function OrderDetails() {
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="0.00"
                   max={order.balanceAmount}
+                  min={-(order.advancePaid || 0)}
                 />
+                {Number(paymentAmount) < 0 && <p className="text-xs text-rose-500 mt-1">This will refund the amount and increase the customer's pending balance.</p>}
               </div>
 
               <div>
@@ -510,10 +534,10 @@ export default function OrderDetails() {
               </button>
               <button
                 onClick={() => paymentMutation.mutate()}
-                disabled={!paymentAmount || paymentAmount <= 0 || paymentAmount > order.balanceAmount || paymentMutation.isPending}
-                className="px-4 py-2 bg-amber-600 text-white rounded-md text-sm font-bold hover:bg-amber-700 transition-colors disabled:opacity-50"
+                disabled={paymentAmount === '' || paymentAmount === 0 || Number(paymentAmount) > order.balanceAmount || Number(paymentAmount) < -(order.advancePaid || 0) || paymentMutation.isPending}
+                className={cn("px-4 py-2 text-white rounded-md text-sm font-bold transition-colors disabled:opacity-50", Number(paymentAmount) < 0 ? "bg-rose-600 hover:bg-rose-700" : "bg-amber-600 hover:bg-amber-700")}
               >
-                {paymentMutation.isPending ? 'Saving...' : 'Confirm Payment'}
+                {paymentMutation.isPending ? 'Saving...' : Number(paymentAmount) < 0 ? 'Confirm Refund' : 'Confirm Payment'}
               </button>
             </div>
           </div>

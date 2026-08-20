@@ -126,15 +126,26 @@ class TransactionService {
     ]);
 
     // Compute live aggregation statistics on the full matched dataset
-    const summaryStats = await Transaction.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: '$type',
-          totalAmount: { $sum: '$amount' },
-          count: { $sum: 1 }
+    const [summaryStats, methodStats] = await Promise.all([
+      Transaction.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: '$type',
+            totalAmount: { $sum: '$amount' },
+            count: { $sum: 1 }
+          }
         }
-      }
+      ]),
+      Transaction.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: { type: '$type', method: '$paymentMethod' },
+            totalAmount: { $sum: '$amount' }
+          }
+        }
+      ])
     ]);
 
     let totalIncome = 0;
@@ -142,6 +153,24 @@ class TransactionService {
     summaryStats.forEach(stat => {
       if (stat._id === 'Income') totalIncome = stat.totalAmount;
       if (stat._id === 'Expense') totalExpense = stat.totalAmount;
+    });
+
+    const methodBreakdown = {
+      income: { cash: 0, online: 0, other: 0 },
+      expense: { cash: 0, online: 0, other: 0 }
+    };
+
+    methodStats.forEach(stat => {
+      const typeKey = stat._id.type === 'Income' ? 'income' : (stat._id.type === 'Expense' ? 'expense' : null);
+      if (typeKey) {
+        if (stat._id.method === 'Cash') {
+          methodBreakdown[typeKey].cash += stat.totalAmount;
+        } else if (['UPI', 'Card', 'Bank Transfer'].includes(stat._id.method)) {
+          methodBreakdown[typeKey].online += stat.totalAmount;
+        } else {
+          methodBreakdown[typeKey].other += stat.totalAmount;
+        }
+      }
     });
 
     return {
@@ -155,7 +184,8 @@ class TransactionService {
       summary: {
         totalIncome,
         totalExpense,
-        netProfit: totalIncome - totalExpense
+        netProfit: totalIncome - totalExpense,
+        methodBreakdown
       }
     };
   }

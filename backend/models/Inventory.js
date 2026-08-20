@@ -120,6 +120,21 @@ const FabricConsumptionRuleSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true }
 }, { timestamps: true });
 
+const SupplierBillSchema = new mongoose.Schema({
+  billNumber: { type: String, required: true, unique: true },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', required: true },
+  billDate: { type: Date, required: true },
+  dueDate: { type: Date, required: true },
+  totalAmount: { type: Number, required: true, default: 0 },
+  amountPaid: { type: Number, default: 0 },
+  status: { type: String, enum: ['Unpaid', 'Partial', 'Paid', 'Overdue'], default: 'Unpaid' },
+  fabricItems: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FabricInventory' }],
+  notified: { type: Boolean, default: false }
+}, { timestamps: true });
+
+SupplierBillSchema.index({ dueDate: 1, status: 1 });
+SupplierBillSchema.index({ supplierId: 1 });
+
 module.exports = {
   Supplier: mongoose.models.Supplier || mongoose.model('Supplier', SupplierSchema),
   FabricInventory: mongoose.models.FabricInventory || mongoose.model('FabricInventory', FabricInventorySchema),
@@ -128,6 +143,6 @@ module.exports = {
   FabricRoll: mongoose.models.FabricRoll || mongoose.model('FabricRoll', FabricRollSchema),
   StockTransaction: mongoose.models.StockTransaction || mongoose.model('StockTransaction', StockTransactionSchema),
   BarcodeHistory: mongoose.models.BarcodeHistory || mongoose.model('BarcodeHistory', BarcodeHistorySchema),
-  FabricConsumptionRule: mongoose.models.FabricConsumptionRule || mongoose.model('FabricConsumptionRule', FabricConsumptionRuleSchema)
+  FabricConsumptionRule: mongoose.models.FabricConsumptionRule || mongoose.model('FabricConsumptionRule', FabricConsumptionRuleSchema),
+  SupplierBill: mongoose.models.SupplierBill || mongoose.model('SupplierBill', SupplierBillSchema)
 };
-

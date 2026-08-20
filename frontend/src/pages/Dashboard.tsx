@@ -37,7 +37,32 @@ function KPICard({ title, value, change, trend, icon: Icon, color = "primary" }:
         ) : (
           <span className="text-rose-500 flex items-center gap-0.5"><TrendingDown className="h-3 w-3" /> {change}</span>
         )}
-        <span className="text-muted-foreground ml-1">Live data</span>
+      </div>
+    </div>
+  );
+}
+
+function PaymentBreakdownCard({ cashIn, cashOut, onlineIn, onlineOut }: any) {
+  return (
+    <div className="rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md flex flex-col justify-between">
+      <h3 className="text-[11px] font-bold text-muted-foreground tracking-tight uppercase mb-2">Cash vs Online Flow</h3>
+      <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+        <div>
+          <p className="text-[9px] text-emerald-600/70 font-bold uppercase mb-0.5">Cash In</p>
+          <p className="text-sm font-bold text-emerald-600">₹{cashIn.toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="text-[9px] text-emerald-600/70 font-bold uppercase mb-0.5">Online In</p>
+          <p className="text-sm font-bold text-emerald-600">₹{onlineIn.toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="text-[9px] text-rose-600/70 font-bold uppercase mb-0.5">Cash Out</p>
+          <p className="text-sm font-bold text-rose-600">₹{cashOut.toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="text-[9px] text-rose-600/70 font-bold uppercase mb-0.5">Online Out</p>
+          <p className="text-sm font-bold text-rose-600">₹{onlineOut.toLocaleString()}</p>
+        </div>
       </div>
     </div>
   );
@@ -101,11 +126,17 @@ export default function Dashboard() {
   const customers = filterByDate(allCustomers);
 
   const totalSales = orders.reduce((sum: number, o: any) => sum + (o.totalAmount || 0), 0);
+  const totalCollected = txs.filter((t: any) => t.type === 'Income').reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
   const totalExpenses = txs.filter((t: any) => t.type === 'Expense').reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+  
+  const cashReceived = txs.filter((t: any) => t.type === 'Income' && t.paymentMethod === 'Cash').reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+  const onlineReceived = txs.filter((t: any) => t.type === 'Income' && ['UPI', 'Card', 'Bank Transfer'].includes(t.paymentMethod)).reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+  const cashGone = txs.filter((t: any) => t.type === 'Expense' && t.paymentMethod === 'Cash').reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+  const onlineGone = txs.filter((t: any) => t.type === 'Expense' && ['UPI', 'Card', 'Bank Transfer'].includes(t.paymentMethod)).reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+
   const pendingOrders = orders.filter((o: any) => o.status !== 'Delivered' && o.status !== 'Cancelled').length;
   const readyOrders = orders.filter((o: any) => o.status === 'Ready').length;
-  const avgOrderValue = orders.length > 0 ? Math.round(totalSales / orders.length) : 0;
-  const netProfit = totalSales - totalExpenses;
+  const netProfit = totalCollected - totalExpenses;
   
   // Compute chart data dynamically
   const typeCount: Record<string, number> = {};
@@ -377,11 +408,12 @@ export default function Dashboard() {
         </div>
       )}
       {/* KPI Grid - Massive Array */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-6">
         <KPICard title="Total Sales" value={`₹${totalSales.toLocaleString()}`} change="" trend="up" icon={DollarSign} color="primary" />
+        <KPICard title="Total Collected" value={`₹${totalCollected.toLocaleString()}`} change="" trend="up" icon={DollarSign} color="emerald" />
         <KPICard title="Net Profit" value={`₹${netProfit.toLocaleString()}`} change="" trend={netProfit >= 0 ? "up" : "down"} icon={Activity} color={netProfit >= 0 ? "emerald" : "rose"} />
         <KPICard title="Total Orders" value={orders.length} change="" trend="up" icon={ShoppingBag} color="primary" />
-        <KPICard title="Avg Order Value" value={`₹${avgOrderValue.toLocaleString()}`} change="" trend="up" icon={CreditCard} color="primary" />
+        <PaymentBreakdownCard cashIn={cashReceived} cashOut={cashGone} onlineIn={onlineReceived} onlineOut={onlineGone} />
         <KPICard title="Customers" value={customers.length} change="" trend="up" icon={Users} color="primary" />
       </div>
 

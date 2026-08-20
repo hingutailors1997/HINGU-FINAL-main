@@ -64,6 +64,17 @@ export default function Accounts() {
   const totalExpense = summary.totalExpense || transactions.filter((t: any) => t.type === 'Expense').reduce((sum: number, t: any) => sum + t.amount, 0);
   const netProfit = summary.netProfit || (totalIncome - totalExpense);
 
+  const breakdown = summary.methodBreakdown || {
+    income: {
+      cash: transactions.filter((t: any) => t.type === 'Income' && t.paymentMethod === 'Cash').reduce((sum: number, t: any) => sum + t.amount, 0),
+      online: transactions.filter((t: any) => t.type === 'Income' && ['UPI', 'Card', 'Bank Transfer'].includes(t.paymentMethod)).reduce((sum: number, t: any) => sum + t.amount, 0),
+    },
+    expense: {
+      cash: transactions.filter((t: any) => t.type === 'Expense' && t.paymentMethod === 'Cash').reduce((sum: number, t: any) => sum + t.amount, 0),
+      online: transactions.filter((t: any) => t.type === 'Expense' && ['UPI', 'Card', 'Bank Transfer'].includes(t.paymentMethod)).reduce((sum: number, t: any) => sum + t.amount, 0),
+    }
+  };
+
   const handleDownloadReport = async () => {
     try {
       const logoBase64 = await getLogoBase64().catch(() => undefined);
@@ -130,6 +141,12 @@ export default function Accounts() {
             </div>
           </div>
           <div className="text-2xl font-bold text-emerald-500">₹{totalIncome.toLocaleString()}</div>
+          {breakdown.income && (
+            <div className="mt-2 flex gap-3 text-[11px] font-medium text-muted-foreground">
+              <span className="flex items-center gap-1">Cash: <span className="text-emerald-600/70">₹{breakdown.income.cash.toLocaleString()}</span></span>
+              <span className="flex items-center gap-1">Online: <span className="text-emerald-600/70">₹{breakdown.income.online.toLocaleString()}</span></span>
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl border bg-card p-6 shadow-sm">
@@ -140,6 +157,12 @@ export default function Accounts() {
             </div>
           </div>
           <div className="text-2xl font-bold text-rose-500">₹{totalExpense.toLocaleString()}</div>
+          {breakdown.expense && (
+            <div className="mt-2 flex gap-3 text-[11px] font-medium text-muted-foreground">
+              <span className="flex items-center gap-1">Cash: <span className="text-rose-600/70">₹{breakdown.expense.cash.toLocaleString()}</span></span>
+              <span className="flex items-center gap-1">Online: <span className="text-rose-600/70">₹{breakdown.expense.online.toLocaleString()}</span></span>
+            </div>
+          )}
         </div>
       </div>
 

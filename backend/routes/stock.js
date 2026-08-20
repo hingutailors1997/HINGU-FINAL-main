@@ -1,12 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const { FabricInventory, FabricRoll, StockTransaction, BarcodeHistory, StockHistory, ScanHistory, FabricConsumptionRule } = require('../models/Inventory');
+const { FabricInventory, FabricRoll, StockTransaction, BarcodeHistory, StockHistory, ScanHistory, FabricConsumptionRule, SupplierBill, Supplier } = require('../models/Inventory');
 const { Notification } = require('../models/System');
+const Transaction = require('../models/Transaction');
 const InventoryService = require('../services/inventoryService');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 const { upload } = require('../middleware/upload');
 const { sendSuccess, sendError } = require('../utils/response');
+
+// GET all suppliers
+router.get('/suppliers', authMiddleware, async (req, res, next) => {
+  try {
+    const suppliers = await Supplier.find().sort({ name: 1 });
+    return sendSuccess(res, 200, 'Suppliers retrieved', suppliers);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET all fabric inventory (supports search, category, status, warehouse, sorting, and pagination)
 router.get('/', authMiddleware, async (req, res, next) => {
@@ -428,6 +439,123 @@ router.delete('/:id', authMiddleware, roleMiddleware(['owner', 'manager', 'admin
     });
 
     return sendSuccess(res, 200, `Fabric '${fabric.name}' has been permanently removed`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ==========================================
+// SUPPLIER BILLS & DUE REMINDERS
+// ==========================================
+
+// GET all supplier bills
+router.get('/bills', authMiddleware, async (req, res, next) => {
+  try {
+    const bills = await SupplierBill.find().populate('supplierId').sort('-createdAt');
+    return sendSuccess(res, 200, 'Supplier bills retrieved', bills);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST new supplier bill
+router.post('/bills', authMiddleware, async (req, res, next) => {
+  try {
+    const dueDate = new Date(req.body.billDate);
+    dueDate.setDate(dueDate.getDate() + 45); // Add 45 days
+
+    const bill = new SupplierBill({
+      ...req.body,
+      dueDate,
+      status: req.body.amountPaid >= req.body.totalAmount ? 'Paid' : (req.body.amountPaid > 0 ? 'Partial' : 'Unpaid')
+    });
+    await bill.save();
+    
+    return sendSuccess(res, 201, 'Supplier bill recorded', bill);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT pay a supplier bill
+router.post('/bills/:id/pay', authMiddleware, async (req, res, next) => {
+  try {
+    const bill = await SupplierBill.findById(req.params.id).populate('supplierId');
+    if (!bill) return sendError(res, 404, 'Bill not found');
+
+    const paymentAmount = Number(req.body.paymentAmount) || 0;
+    bill.amountPaid += paymentAmount;
+    
+    if (bill.amountPaid >= bill.totalAmount) {
+      bill.status = 'Paid';
+    } else if (bill.amountPaid > 0) {
+      bill.status = 'Partial';
+    }
+
+    await bill.save();
+
+    // Create an Expense Transaction in Accounts Ledger
+    const tx = new Transaction({
+      transactionNumber: `TX-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      type: 'Expense',
+      amount: paymentAmount,
+      category: 'Fabric Purchase',
+      paymentMethod: req.body.paymentMethod || 'Bank Transfer',
+      description: `Payment for Supplier Bill #${bill.billNumber} (${bill.supplierId ? bill.supplierId.name : 'Unknown'})`,
+    });
+    await tx.save();
+
+    return sendSuccess(res, 200, 'Bill payment recorded successfully', bill);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET check and generate notifications for bills due in <= 7 days
+router.get('/bills/check-due', authMiddleware, async (req, res, next) => {
+  try {
+    const now = new Date();
+    const threshold = new Date();
+    threshold.setDate(now.getDate() + 7); // 7 days from now
+
+    const dueBills = await SupplierBill.find({
+      status: { $in: ['Unpaid', 'Partial'] },
+      dueDate: { $lte: threshold },
+      notified: false
+    }).populate('supplierId');
+
+    const notifications = [];
+    for (const bill of dueBills) {
+      // Create notification for admin
+      const notification = new Notification({
+        userId: req.user ? req.user.id : null, // Fallback if no user context but ideally requires admin ID
+        title: 'Bill Payment Due Reminder',
+        message: `Supplier Bill #${bill.billNumber} from ${bill.supplierId ? bill.supplierId.name : 'Unknown'} for ₹${bill.totalAmount} is due on ${bill.dueDate.toLocaleDateString()}.`,
+        type: 'Warning',
+        link: '/stock'
+      });
+      await notification.save();
+      notifications.push(notification);
+
+      bill.notified = true;
+      if (bill.dueDate < now) {
+        bill.status = 'Overdue';
+      }
+      await bill.save();
+    }
+
+    // Also check for already notified bills that just became overdue
+    const overdueBills = await SupplierBill.find({
+      status: { $in: ['Unpaid', 'Partial'] },
+      dueDate: { $lt: now },
+      notified: true
+    });
+    for (const bill of overdueBills) {
+      bill.status = 'Overdue';
+      await bill.save();
+    }
+
+    return sendSuccess(res, 200, 'Due bills checked and notifications created', { notifiedCount: notifications.length });
   } catch (err) {
     next(err);
   }

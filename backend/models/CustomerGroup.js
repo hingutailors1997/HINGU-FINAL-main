@@ -23,7 +23,7 @@ const customerGroupSchema = new mongoose.Schema({
   deletedAt: { type: Date }
 }, { timestamps: true });
 
-customerGroupSchema.index({ groupName: 1 });
+
 customerGroupSchema.index({ groupName: 'text', contactPerson: 'text', mobile: 'text', gstNumber: 'text' });
 
 if (mongoose.models.CustomerGroup) {

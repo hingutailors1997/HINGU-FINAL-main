@@ -549,7 +549,7 @@ router.put('/:id', authMiddleware, async (req, res, next) => {
       balanceAmount
     }, { new: true });
     
-    // Generate Financial Transaction if extra payment was collected
+    // Generate Financial Transaction if extra payment was collected or refunded
     if (paymentDiff > 0) {
       const customerName = oldOrder.customerId ? oldOrder.customerId.fullName : 'Customer';
       const tx = new Transaction({
@@ -568,6 +568,27 @@ router.put('/:id', authMiddleware, async (req, res, next) => {
       if (oldOrder.customerId) {
         await Customer.findByIdAndUpdate(oldOrder.customerId._id, {
           $inc: { pendingBalance: -paymentDiff }
+        });
+      }
+    } else if (paymentDiff < 0) {
+      // Reversal / Undo Payment
+      const customerName = oldOrder.customerId ? oldOrder.customerId.fullName : 'Customer';
+      const tx = new Transaction({
+        transactionNumber: `TX-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        type: 'Expense', // Refund / Reversal
+        amount: Math.abs(paymentDiff),
+        category: 'Order Payment Reversal',
+        paymentMethod: req.body.paymentMethod || 'Cash',
+        description: `Payment reversal for ${oldOrder.orderNumber} (${customerName})`,
+        orderRef: oldOrder._id,
+        customerRef: oldOrder.customerId ? oldOrder.customerId._id : undefined
+      });
+      await tx.save();
+      
+      // Update Customer pendingBalance to restore the debt
+      if (oldOrder.customerId) {
+        await Customer.findByIdAndUpdate(oldOrder.customerId._id, {
+          $inc: { pendingBalance: Math.abs(paymentDiff) } // Increase their pending balance because we undid a payment
         });
       }
     }

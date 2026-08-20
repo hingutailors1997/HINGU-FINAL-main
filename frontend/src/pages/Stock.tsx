@@ -11,12 +11,14 @@ import { useGlobalSearch } from '../contexts/GlobalSearchContext';
 import Scanner from '../components/Scanner';
 import { useToast } from '../components/Toast';
 import PrintLabelModal from '../components/modals/PrintLabelModal';
+import SupplierBillsTab from '../components/stock/SupplierBillsTab';
 
 export default function Stock() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { globalSearch: searchTerm, setGlobalSearch: setSearchTerm } = useGlobalSearch();
+  const [activeTab, setActiveTab] = useState<'inventory' | 'bills'>('inventory');
   const [page, setPage] = useState(1);
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [selectedFabric, setSelectedFabric] = useState<any>(null);
@@ -80,16 +82,15 @@ export default function Stock() {
 
   const selectedFabricsData = stock.filter((s: any) => selectedForPrint.has(s.fabricId || s._id));
 
-
   return (
     <div className="space-y-6 animate-in fade-in duration-500 relative">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Fabric Inventory & Barcodes</h1>
-          <p className="text-muted-foreground">Manage stock and generate printable barcode/QR labels.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Inventory & Procurement</h1>
+          <p className="text-muted-foreground">Manage fabric stock, barcodes, and supplier bills.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {selectedForPrint.size > 0 && (
+          {activeTab === 'inventory' && selectedForPrint.size > 0 && (
             <button 
               onClick={() => setShowPrintModal(true)}
               className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-md text-sm font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200 h-10 px-4 py-2 transition-colors border border-indigo-200 whitespace-nowrap"
@@ -98,45 +99,78 @@ export default function Stock() {
               Print Selected ({selectedForPrint.size})
             </button>
           )}
-          <button 
-            onClick={() => setIsScanning(true)}
-            className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background hover:bg-muted h-10 px-4 py-2 transition-colors whitespace-nowrap"
-          >
-            <ScanBarcode className="mr-2 h-4 w-4" />
-            Scan Fabric
-          </button>
-          <button 
-            onClick={() => navigate('/stock/new')}
-            className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 shadow-sm transition-colors whitespace-nowrap"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Fabric
-          </button>
+          {activeTab === 'inventory' && (
+            <button 
+              onClick={() => setIsScanning(true)}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background hover:bg-muted h-10 px-4 py-2 transition-colors whitespace-nowrap"
+            >
+              <ScanBarcode className="mr-2 h-4 w-4" />
+              Scan Fabric
+            </button>
+          )}
+          {activeTab === 'inventory' && (
+            <button 
+              onClick={() => navigate('/stock/new')}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 shadow-sm transition-colors whitespace-nowrap"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Fabric
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
-          <h3 className="text-sm font-medium text-muted-foreground mb-4">Total Inventory Value</h3>
-          <div className="text-3xl font-bold">₹{totalValue.toLocaleString()}</div>
-        </div>
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
-          <h3 className="text-sm font-medium text-muted-foreground mb-4">Low Stock Alerts</h3>
-          <div className="flex items-center gap-2">
-            <div className={cn("text-3xl font-bold", lowStockCount > 0 ? "text-rose-500" : "text-emerald-500")}>
-              {lowStockCount}
-            </div>
-            <span className="text-sm text-muted-foreground">items</span>
-          </div>
-        </div>
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
-          <h3 className="text-sm font-medium text-muted-foreground mb-4">Active Barcodes</h3>
-          <div className="flex items-center gap-2">
-            <div className="text-3xl font-bold">{activeBarcodes.toLocaleString()}</div>
-            <span className="text-sm text-muted-foreground">rolls tracked</span>
-          </div>
-        </div>
+      <div className="flex space-x-1 border-b">
+        <button
+          onClick={() => setActiveTab('inventory')}
+          className={cn(
+            "px-4 py-2.5 text-sm font-medium transition-colors border-b-2",
+            activeTab === 'inventory' 
+              ? "border-primary text-primary" 
+              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+          )}
+        >
+          Fabric Stock
+        </button>
+        <button
+          onClick={() => setActiveTab('bills')}
+          className={cn(
+            "px-4 py-2.5 text-sm font-medium transition-colors border-b-2",
+            activeTab === 'bills' 
+              ? "border-primary text-primary" 
+              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+          )}
+        >
+          Supplier Bills
+        </button>
       </div>
+
+      {activeTab === 'bills' ? (
+        <SupplierBillsTab />
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-xl border bg-card p-6 shadow-sm">
+              <h3 className="text-sm font-medium text-muted-foreground mb-4">Total Inventory Value</h3>
+              <div className="text-3xl font-bold">₹{totalValue.toLocaleString()}</div>
+            </div>
+            <div className="rounded-xl border bg-card p-6 shadow-sm">
+              <h3 className="text-sm font-medium text-muted-foreground mb-4">Low Stock Alerts</h3>
+              <div className="flex items-center gap-2">
+                <div className={cn("text-3xl font-bold", lowStockCount > 0 ? "text-rose-500" : "text-emerald-500")}>
+                  {lowStockCount}
+                </div>
+                <span className="text-sm text-muted-foreground">items</span>
+              </div>
+            </div>
+            <div className="rounded-xl border bg-card p-6 shadow-sm">
+              <h3 className="text-sm font-medium text-muted-foreground mb-4">Active Barcodes</h3>
+              <div className="flex items-center gap-2">
+                <div className="text-3xl font-bold">{activeBarcodes.toLocaleString()}</div>
+                <span className="text-sm text-muted-foreground">rolls tracked</span>
+              </div>
+            </div>
+          </div>
 
       <div className="rounded-xl border bg-card shadow-sm flex flex-col overflow-hidden">
         <div className="p-4 border-b flex items-center justify-between gap-4 bg-muted/20">
@@ -282,6 +316,8 @@ export default function Stock() {
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {/* Barcode Generation Modal */}
       {selectedFabric && (
