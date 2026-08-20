@@ -397,7 +397,7 @@ router.post('/', authMiddleware, async (req, res, next) => {
         amount: advancePaid,
         category: 'Order Advance Payment',
         paymentMethod: req.body.paymentMethod || 'UPI',
-        description: `Advance collected for ${orderNumber} (${customer.firstName})`,
+        description: `Advance collected for ${orderNumber} (${clientEntity.firstName || clientEntity.fullName || clientEntity.groupName || 'Customer'})`,
         orderRef: savedOrder._id
       });
       await tx.save();
