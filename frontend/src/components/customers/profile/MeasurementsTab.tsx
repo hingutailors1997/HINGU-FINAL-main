@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchMeasurements, saveMeasurement, restoreMeasurementVersion } from '../../../lib/api';
 import { generateCustomerMeasurementPDF } from '../../../lib/pdfExport';
@@ -6,7 +6,8 @@ import { useToast } from '../../../components/Toast';
 import { GARMENT_REGISTRY, ANATOMICAL_PARAMETERS, getDefaultGarmentSpecs } from './measurements/garmentRegistry';
 import { 
   Scissors, Save, Printer, RotateCcw, History, CheckCircle2, 
-  Ruler, FileText, Calendar, Plus, Check, AlertCircle, RefreshCw
+  Ruler, FileText, Calendar, Plus, Check, AlertCircle, RefreshCw,
+  Mic, MicOff
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 
@@ -27,6 +28,96 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // --- Voice Input State ---
+  const [isListening, setIsListening] = useState(false);
+  const [voiceLang, setVoiceLang] = useState<'gu-IN' | 'en-US'>('gu-IN');
+  const [interimText, setInterimText] = useState('');
+  const [speechSupported, setSpeechSupported] = useState(true);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setSpeechSupported(false);
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognitionRef.current = recognition;
+
+    return () => {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch(e){}
+      }
+    };
+  }, []);
+
+  const handleVoiceResult = useCallback((finalText: string) => {
+    setNotes(prev => {
+      const updated = prev ? `${prev} ${finalText.trim()}` : finalText.trim();
+      setCurrentValues(curr => ({ ...curr, _notes: updated }));
+      setHasUnsavedChanges(true);
+      return updated;
+    });
+  }, []);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) return;
+    
+    if (isListening) {
+      try { recognitionRef.current.stop(); } catch(e){}
+      setIsListening(false);
+      setInterimText('');
+      return;
+    }
+
+    try {
+      const recognition = recognitionRef.current;
+      recognition.lang = voiceLang;
+      
+      recognition.onresult = (event: any) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        
+        if (finalTranscript) {
+          handleVoiceResult(finalTranscript);
+        }
+        setInterimText(interimTranscript);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error', event.error);
+        if (event.error === 'not-allowed') {
+          showToast('Microphone permission is required for voice input.', 'error');
+        }
+        setIsListening(false);
+        setInterimText('');
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        setInterimText('');
+      };
+
+      recognition.start();
+      setIsListening(true);
+    } catch (e) {
+      console.error('Failed to start speech recognition', e);
+      setIsListening(false);
+      setInterimText('');
+    }
+  };
+  // -----------------------
 
   const garmentSpec = useMemo(() => GARMENT_REGISTRY[activeGarment] || GARMENT_REGISTRY['Custom'], [activeGarment]);
   const allowedIds = useMemo(() => {
@@ -54,6 +145,12 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
 
   // Load appropriate values when changing garment or selecting historical record
   useEffect(() => {
+    if (recognitionRef.current && isListening) {
+      try { recognitionRef.current.stop(); } catch(e){}
+      setIsListening(false);
+      setInterimText('');
+    }
+
     if (selectedVersionId) {
       const ver = garmentHistory.find((v: any) => v._id === selectedVersionId);
       if (ver && ver.measurements) {
@@ -107,6 +204,11 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
       changeReason: selectedVersionId ? `New version derived from historical record` : `Enterprise workstation specification for ${activeGarment}`
     }),
     onSuccess: () => {
+      if (recognitionRef.current && isListening) {
+        try { recognitionRef.current.stop(); } catch(e){}
+        setIsListening(false);
+        setInterimText('');
+      }
       showToast(`${activeGarment} measurements saved successfully!`, 'success');
       setHasUnsavedChanges(false);
       setSelectedVersionId(null);
@@ -342,17 +444,63 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
 
             {/* Special Fitting Preferences & Remarks */}
             <div className="pt-4 border-t border-slate-200">
-              <label htmlFor="master_notes" className="text-xs font-black text-slate-900 flex items-center gap-1.5 mb-2">
-                <FileText className="h-4 w-4 text-[#2563EB]" /> Master Tailor Fitting Preferences & Custom Remarks
-              </label>
-              <textarea
-                id="master_notes"
-                rows={3}
-                value={notes}
-                onChange={(e) => handleNotesChange(e.target.value)}
-                placeholder="Enter any special tailoring notes, collar alterations, cuff allowances, or posture adaptations for this garment..."
-                className="w-full rounded-xl border border-slate-300 p-3 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2563EB] bg-slate-50/50"
-              />
+              <div className="flex items-center justify-between mb-2">
+                <label htmlFor="master_notes" className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 text-[#2563EB]" /> Master Tailor Fitting Preferences & Custom Remarks
+                </label>
+                
+                {speechSupported && (
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={voiceLang}
+                      onChange={(e) => setVoiceLang(e.target.value as 'gu-IN' | 'en-US')}
+                      className="text-[10px] font-bold bg-slate-100 border border-slate-200 text-slate-700 rounded-lg px-2 py-1.5 focus:outline-none"
+                      disabled={isListening}
+                    >
+                      <option value="gu-IN">ગુજરાતી</option>
+                      <option value="en-US">English</option>
+                    </select>
+                    
+                    <button
+                      onClick={toggleListening}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-extrabold transition-all",
+                        isListening 
+                          ? "bg-rose-100 text-rose-700 border border-rose-200 animate-pulse" 
+                          : "bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200"
+                      )}
+                      title="Voice Input"
+                      type="button"
+                    >
+                      {isListening ? (
+                        <><MicOff className="h-3 w-3" /> Listening...</>
+                      ) : (
+                        <><Mic className="h-3 w-3" /> Voice</>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              <div className="relative">
+                <textarea
+                  id="master_notes"
+                  rows={3}
+                  value={notes + (interimText ? (notes ? ' ' : '') + interimText : '')}
+                  onChange={(e) => {
+                    if (isListening) return; // Prevent manual typing collisions while actively speaking
+                    handleNotesChange(e.target.value);
+                  }}
+                  placeholder="Enter any special tailoring notes, collar alterations, cuff allowances, or posture adaptations for this garment..."
+                  className={cn(
+                    "w-full rounded-xl border p-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#2563EB] transition-all",
+                    isListening ? "border-blue-300 bg-blue-50/30 text-blue-900" : "border-slate-300 bg-slate-50/50 text-slate-800"
+                  )}
+                />
+                {!speechSupported && (
+                  <p className="text-[9px] text-slate-400 mt-1 font-semibold text-right">Voice input is not supported on this browser. Please use the keyboard.</p>
+                )}
+              </div>
             </div>
 
             {/* Action Bar */}
