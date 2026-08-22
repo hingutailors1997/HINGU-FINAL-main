@@ -62,7 +62,12 @@ export default function OrderDetails() {
         const waLink = isIOS 
           ? `whatsapp://send?phone=${data.phone}&text=${encodedText}` 
           : `https://wa.me/${data.phone}?text=${encodedText}`;
-        window.open(waLink, '_blank');
+          
+        if (isIOS) {
+          window.location.href = waLink;
+        } else {
+          window.open(waLink, '_blank');
+        }
       } else {
         showToast('No WhatsApp number found for this customer.', 'error');
       }

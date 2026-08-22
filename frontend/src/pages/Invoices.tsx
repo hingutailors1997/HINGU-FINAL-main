@@ -148,7 +148,12 @@ export default function Invoices() {
         const waLink = isIOS 
           ? `whatsapp://send?phone=${phone}&text=${encodedText}` 
           : `https://wa.me/${phone}?text=${encodedText}`;
-        window.open(waLink, '_blank');
+          
+        if (isIOS) {
+          window.location.href = waLink;
+        } else {
+          window.open(waLink, '_blank');
+        }
       }
     } catch (err) {
       console.error(err);

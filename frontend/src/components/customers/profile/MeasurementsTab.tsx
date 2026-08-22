@@ -43,7 +43,13 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
       return;
     }
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    
+    try {
+      // iOS Safari often fails if continuous is true
+      recognition.continuous = !isIOS;
+    } catch (e) {}
+    
     recognition.interimResults = true;
     recognitionRef.current = recognition;
 
@@ -64,15 +70,20 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
     setHasUnsavedChanges(true);
   }, []);
 
+  const isManualStopRef = useRef(false);
+
   const toggleListening = () => {
     if (!recognitionRef.current) return;
     
     if (isListening) {
+      isManualStopRef.current = true;
       try { recognitionRef.current.stop(); } catch(e){}
       setIsListening(false);
       setInterimText('');
       return;
     }
+
+    isManualStopRef.current = false;
 
     try {
       const recognition = recognitionRef.current;
@@ -107,6 +118,15 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
       };
 
       recognition.onend = () => {
+        if (!isManualStopRef.current) {
+          // Auto-restart for iOS to simulate continuous mode
+          try {
+            recognition.start();
+            return;
+          } catch(e) {
+            console.error('Auto-restart failed', e);
+          }
+        }
         setIsListening(false);
         setInterimText('');
       };
