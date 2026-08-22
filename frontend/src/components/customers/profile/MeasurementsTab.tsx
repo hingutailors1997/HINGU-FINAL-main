@@ -54,13 +54,14 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
     };
   }, []);
 
-  const handleVoiceResult = useCallback((finalText: string) => {
-    setNotes(prev => {
-      const updated = prev ? `${prev} ${finalText.trim()}` : finalText.trim();
-      setCurrentValues(curr => ({ ...curr, _notes: updated }));
-      setHasUnsavedChanges(true);
-      return updated;
-    });
+  const sessionStartNotesRef = useRef('');
+
+  const handleVoiceSessionUpdate = useCallback((sessionFinalText: string) => {
+    const startNotes = sessionStartNotesRef.current;
+    const updated = startNotes ? `${startNotes} ${sessionFinalText.trim()}` : sessionFinalText.trim();
+    setNotes(updated);
+    setCurrentValues(curr => ({ ...curr, _notes: updated }));
+    setHasUnsavedChanges(true);
   }, []);
 
   const toggleListening = () => {
@@ -77,11 +78,14 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
       const recognition = recognitionRef.current;
       recognition.lang = voiceLang;
       
+      sessionStartNotesRef.current = notes; // Capture notes before session starts
+
       recognition.onresult = (event: any) => {
         let finalTranscript = '';
         let interimTranscript = '';
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
+        // Iterate from 0 to reconstruct the exact session transcript, bypassing Android duplicate event bugs
+        for (let i = 0; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
             finalTranscript += event.results[i][0].transcript;
           } else {
@@ -89,9 +93,7 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
           }
         }
         
-        if (finalTranscript) {
-          handleVoiceResult(finalTranscript);
-        }
+        handleVoiceSessionUpdate(finalTranscript);
         setInterimText(interimTranscript);
       };
 
