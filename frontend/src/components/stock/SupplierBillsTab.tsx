@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchSupplierBills, recordBillPayment } from '../../lib/api';
+import { fetchSupplierBills, recordBillPayment, deleteSupplierBill } from '../../lib/api';
 import { useToast } from '../Toast';
 import { format, differenceInDays } from 'date-fns';
-import { AlertTriangle, CheckCircle, Clock, Banknote, Calendar } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Banknote, Calendar, Trash2 } from 'lucide-react';
 import AddSupplierBillModal from '../modals/AddSupplierBillModal';
 
 export default function SupplierBillsTab() {
@@ -13,7 +13,8 @@ export default function SupplierBillsTab() {
   
   const { data: bills, isLoading } = useQuery({
     queryKey: ['supplierBills'],
-    queryFn: fetchSupplierBills
+    queryFn: fetchSupplierBills,
+    staleTime: 5 * 60 * 1000 // 5 minutes cache
   });
 
   const payMutation = useMutation({
@@ -27,6 +28,23 @@ export default function SupplierBillsTab() {
       toast(err.response?.data?.message || 'Failed to record payment', 'error');
     }
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteSupplierBill,
+    onSuccess: () => {
+      toast('Supplier bill deleted successfully', 'success');
+      queryClient.invalidateQueries({ queryKey: ['supplierBills'] });
+    },
+    onError: (err: any) => {
+      toast(err.response?.data?.message || 'Failed to delete bill', 'error');
+    }
+  });
+
+  const handleDelete = (bill: any) => {
+    if (window.confirm(`Are you sure you want to permanently delete Bill #${bill.billNumber}?`)) {
+      deleteMutation.mutate(bill._id);
+    }
+  };
 
   const handlePay = (bill: any) => {
     const remaining = bill.totalAmount - bill.amountPaid;
@@ -134,15 +152,25 @@ export default function SupplierBillsTab() {
                     <td className="px-6 py-4 text-right font-medium text-emerald-600">₹{bill.amountPaid?.toLocaleString()}</td>
                     <td className="px-6 py-4">{getStatusBadge(bill.status)}</td>
                     <td className="px-6 py-4 text-center">
-                      {bill.status !== 'Paid' && (
-                        <button 
-                          onClick={() => handlePay(bill)}
-                          disabled={payMutation.isPending}
-                          className="text-xs font-semibold bg-primary text-primary-foreground px-3 py-1.5 rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      <div className="flex items-center justify-center gap-2">
+                        {bill.status !== 'Paid' && (
+                          <button 
+                            onClick={() => handlePay(bill)}
+                            disabled={payMutation.isPending}
+                            className="text-xs font-semibold bg-primary text-primary-foreground px-3 py-1.5 rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
+                          >
+                            Record Pay
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDelete(bill)}
+                          disabled={deleteMutation.isPending}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors disabled:opacity-50"
+                          title="Delete Bill"
                         >
-                          Record Pay
+                          <Trash2 className="w-4 h-4" />
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 );

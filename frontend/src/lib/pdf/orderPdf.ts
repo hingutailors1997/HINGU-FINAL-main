@@ -8,7 +8,14 @@ export const generateOrderDetailsPdf = async (data: any) => {
   
   const doc = new jsPDF();
   const { order, customer } = data;
-  const settings = await fetchSettings();
+  let settings = data.settings;
+  if (!settings) {
+    try {
+      settings = await fetchSettings();
+    } catch (e) {
+      console.warn('Could not fetch settings', e);
+    }
+  }
 
   // Header Brand
   if (data.logoBase64) {

@@ -12,8 +12,59 @@ const { sendSuccess, sendError } = require('../utils/response');
 // GET all suppliers
 router.get('/suppliers', authMiddleware, async (req, res, next) => {
   try {
+    // Auto-sync suppliers from FabricInventory (partyName or supplierName)
+    const distinctPartyNames = await FabricInventory.distinct('partyName');
+    const distinctSupplierNames = await FabricInventory.distinct('supplierName');
+    const allFabricNames = [...new Set([...distinctPartyNames, ...distinctSupplierNames])].filter(Boolean);
+    const allFabricNamesLower = allFabricNames.map(n => n.trim().toLowerCase());
+    
+    for (const name of allFabricNames) {
+      if (name.trim()) {
+        const exists = await Supplier.findOne({ name: new RegExp('^' + name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') });
+        if (!exists) {
+          await Supplier.create({
+            supplierId: `SUP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            name: name.trim()
+          });
+        }
+      }
+    }
+
+    // Auto-cleanup: Delete suppliers that no longer have any fabrics
+    const allSuppliers = await Supplier.find();
+    for (const sup of allSuppliers) {
+      if (!allFabricNamesLower.includes(sup.name.trim().toLowerCase())) {
+        await Supplier.findByIdAndDelete(sup._id);
+      }
+    }
+
     const suppliers = await Supplier.find().sort({ name: 1 });
     return sendSuccess(res, 200, 'Suppliers retrieved', suppliers);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET latest invoice number for a specific supplier name
+router.get('/latest-invoice/:supplierName', authMiddleware, async (req, res, next) => {
+  try {
+    const nameRegex = new RegExp((req.params.supplierName || '').trim(), 'i');
+    const supplier = await Supplier.findOne({ name: nameRegex });
+    
+    const orConditions = [
+      { supplierName: nameRegex },
+      { partyName: nameRegex }
+    ];
+    if (supplier) {
+      orConditions.push({ supplierId: supplier._id });
+    }
+
+    const fabric = await FabricInventory.findOne({
+      $or: orConditions,
+      invoiceNumber: { $nin: [null, ''] }
+    }).sort('-createdAt');
+    
+    return sendSuccess(res, 200, 'Latest invoice retrieved', { invoiceNumber: fabric ? fabric.invoiceNumber : '' });
   } catch (err) {
     next(err);
   }
@@ -155,6 +206,7 @@ router.get('/scans/logs', authMiddleware, roleMiddleware(['owner', 'manager', 'a
 
 // GET specific fabric inventory by ID, Barcode, or QR Code
 router.get('/:id', authMiddleware, async (req, res, next) => {
+  if (['bills', 'check-due', 'pay'].includes(req.params.id)) return next('route');
   try {
     const fabric = await InventoryService.findFabric(req.params.id);
     if (!fabric) {
@@ -188,6 +240,61 @@ router.post('/', authMiddleware, roleMiddleware(['owner', 'manager', 'admin', 's
       link: `/stock/${savedFabric.fabricId || savedFabric._id}`,
       type: 'Success'
     });
+
+    // Automatic Supplier Bill Generation / Updating
+    const invoiceNum = savedFabric.invoiceNumber;
+    const supName = savedFabric.supplierName || savedFabric.partyName;
+    const amount = (savedFabric.purchasePrice || 0) * (savedFabric.totalAvailable || 0);
+
+    if (invoiceNum && supName && amount > 0) {
+      // 1. Find or create supplier
+      let supplier = await Supplier.findOne({ name: new RegExp('^' + supName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') });
+      if (!supplier) {
+        supplier = await Supplier.create({
+          supplierId: `SUP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          name: supName.trim()
+        });
+      }
+
+      // 2. Find existing bill for this invoice + supplier
+      let bill = await SupplierBill.findOne({ billNumber: invoiceNum, supplierId: supplier._id });
+      
+      const advancePay = Number(req.body.amountPaid) || 0;
+
+      if (bill) {
+        // Update existing bill
+        bill.totalAmount = (bill.totalAmount || 0) + amount;
+        bill.amountPaid = (bill.amountPaid || 0) + advancePay;
+        if (!bill.fabricItems) bill.fabricItems = [];
+        bill.fabricItems.push(savedFabric._id);
+        
+        // Re-evaluate status just in case
+        if (bill.amountPaid >= bill.totalAmount) {
+          bill.status = 'Paid';
+        } else if (bill.amountPaid > 0) {
+          bill.status = 'Partial';
+        } else {
+          bill.status = 'Unpaid';
+        }
+        await bill.save();
+      } else {
+        // Create new bill
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 45); // 45 days from today
+        
+        await SupplierBill.create({
+          billNumber: invoiceNum,
+          supplierId: supplier._id,
+          billDate: new Date(),
+          dueDate: dueDate,
+          totalAmount: amount,
+          amountPaid: advancePay,
+          status: advancePay >= amount ? 'Paid' : (advancePay > 0 ? 'Partial' : 'Unpaid'),
+          fabricItems: [savedFabric._id],
+          notified: false
+        });
+      }
+    }
 
     return sendSuccess(res, 201, 'Fabric inventory created with unique Barcode/QR', savedFabric);
   } catch (err) {
@@ -231,6 +338,25 @@ router.put('/:id', authMiddleware, roleMiddleware(['owner', 'manager', 'admin', 
       link: `/stock/${updatedFabric.fabricId || updatedFabric._id}`,
       type: 'Success'
     });
+
+    // Automatically recalculate associated Supplier Bill if present
+    if (updatedFabric.invoiceNumber) {
+      const bill = await SupplierBill.findOne({ billNumber: updatedFabric.invoiceNumber, fabricItems: updatedFabric._id });
+      if (bill) {
+        const allFabrics = await FabricInventory.find({ _id: { $in: bill.fabricItems } });
+        const newTotal = allFabrics.reduce((sum, f) => sum + ((f.purchasePrice || 0) * (f.totalAvailable || 0)), 0);
+        bill.totalAmount = newTotal;
+        
+        if (bill.amountPaid >= bill.totalAmount) {
+          bill.status = 'Paid';
+        } else if (bill.amountPaid > 0) {
+          bill.status = 'Partial';
+        } else {
+          bill.status = 'Unpaid';
+        }
+        await bill.save();
+      }
+    }
 
     return sendSuccess(res, 200, 'Fabric inventory updated successfully', updatedFabric);
   } catch (err) {
@@ -429,6 +555,28 @@ router.delete('/:id', authMiddleware, roleMiddleware(['owner', 'manager', 'admin
       }
     } catch (e) { /* ignore cleanup errors */ }
 
+    // Deduct cost from associated SupplierBill and delete bill if empty
+    const amountToDeduct = (fabric.purchasePrice || 0) * (fabric.totalAvailable || 0);
+    const bills = await SupplierBill.find({ fabricItems: fabric._id });
+    
+    for (const bill of bills) {
+      bill.totalAmount = Math.max(0, (bill.totalAmount || 0) - amountToDeduct);
+      bill.fabricItems = bill.fabricItems.filter(id => id.toString() !== fabric._id.toString());
+      
+      if (bill.totalAmount <= 0 || bill.fabricItems.length === 0) {
+        await SupplierBill.findByIdAndDelete(bill._id);
+      } else {
+        if (bill.amountPaid >= bill.totalAmount) {
+          bill.status = 'Paid';
+        } else if (bill.amountPaid > 0) {
+          bill.status = 'Partial';
+        } else {
+          bill.status = 'Unpaid';
+        }
+        await bill.save();
+      }
+    }
+
     await FabricInventory.findByIdAndDelete(fabric._id);
 
     await Notification.create({
@@ -461,17 +609,50 @@ router.get('/bills', authMiddleware, async (req, res, next) => {
 // POST new supplier bill
 router.post('/bills', authMiddleware, async (req, res, next) => {
   try {
+    let finalSupplierId = req.body.supplierId;
+
+    // Check if supplierId is a valid ObjectId, if not, it's a new string name.
+    if (finalSupplierId && !mongoose.Types.ObjectId.isValid(finalSupplierId)) {
+      let supplier = await Supplier.findOne({ name: new RegExp('^' + finalSupplierId.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') });
+      if (!supplier) {
+        supplier = await Supplier.create({
+          supplierId: `SUP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          name: finalSupplierId.trim()
+        });
+      }
+      finalSupplierId = supplier._id;
+    }
+
     const dueDate = new Date(req.body.billDate);
     dueDate.setDate(dueDate.getDate() + 45); // Add 45 days
 
     const bill = new SupplierBill({
       ...req.body,
+      supplierId: finalSupplierId,
       dueDate,
       status: req.body.amountPaid >= req.body.totalAmount ? 'Paid' : (req.body.amountPaid > 0 ? 'Partial' : 'Unpaid')
     });
     await bill.save();
     
     return sendSuccess(res, 201, 'Supplier bill recorded', bill);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE a supplier bill
+router.delete('/bills/:id', authMiddleware, roleMiddleware(['owner', 'manager', 'admin']), async (req, res, next) => {
+  try {
+    const bill = await SupplierBill.findByIdAndDelete(req.params.id);
+    if (!bill) return sendError(res, 404, 'Bill not found');
+    
+    // Also remove this bill from any associated fabric records (optional safety cleanup)
+    await FabricInventory.updateMany(
+      { _id: { $in: bill.fabricItems } },
+      { $unset: { invoiceNumber: "" } }
+    );
+
+    return sendSuccess(res, 200, 'Supplier bill permanently deleted');
   } catch (err) {
     next(err);
   }

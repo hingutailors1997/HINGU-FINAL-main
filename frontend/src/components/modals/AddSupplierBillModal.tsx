@@ -8,7 +8,7 @@ import { X, Receipt } from 'lucide-react';
 import api from '../../lib/api';
 
 export default function AddSupplierBillModal({ onClose }: { onClose: () => void }) {
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useRHF();
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useRHF();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -32,7 +32,7 @@ export default function AddSupplierBillModal({ onClose }: { onClose: () => void 
     queryFn: async () => {
       try {
         const res = await api.get('/stock/suppliers');
-        return res.data?.data || [];
+        return Array.isArray(res.data) ? res.data : (res.data?.data || []);
       } catch (err) {
         return [];
       }
@@ -52,9 +52,16 @@ export default function AddSupplierBillModal({ onClose }: { onClose: () => void 
   });
 
   const onSubmit = (data: any) => {
+    // If the selected value is a fabric ID, extract its supplier name to send to backend
+    const fabricsList = inventoryData?.fabrics || (Array.isArray(inventoryData) ? inventoryData : []);
+    const selectedFabric = fabricsList.find((f: any) => f._id === data.supplierId);
+    const finalSupplierId = selectedFabric 
+      ? (selectedFabric.supplierName || selectedFabric.partyName || selectedFabric.supplierId?.name || data.supplierId) 
+      : data.supplierId;
+
     mutation.mutate({
       billNumber: data.billNumber,
-      supplierId: data.supplierId,
+      supplierId: finalSupplierId,
       billDate: data.billDate,
       totalAmount: Number(data.totalAmount),
       amountPaid: Number(data.amountPaid) || 0
@@ -90,11 +97,34 @@ export default function AddSupplierBillModal({ onClose }: { onClose: () => void 
             <select 
               {...register('supplierId', { required: 'Supplier is required' })}
               className="w-full p-2 border rounded-md"
+              onChange={(e) => {
+                const fabricId = e.target.value;
+                register('supplierId').onChange(e); // keep RHF sync
+                
+                const fabricsList = inventoryData?.fabrics || (Array.isArray(inventoryData) ? inventoryData : []);
+                if (fabricId && fabricsList.length > 0) {
+                  const selectedFabric = fabricsList.find((f: any) => f._id === fabricId);
+                  if (selectedFabric) {
+                    if (selectedFabric.invoiceNumber) {
+                      setValue('billNumber', selectedFabric.invoiceNumber, { shouldValidate: true, shouldDirty: true });
+                      toast(`Found invoice: ${selectedFabric.invoiceNumber}`, 'success');
+                    } else {
+                      setValue('billNumber', '', { shouldValidate: true, shouldDirty: true });
+                      toast(`No invoice number saved for this fabric`, 'error');
+                    }
+                  }
+                }
+              }}
             >
-              <option value="">Select Supplier...</option>
-              {suppliers?.map((s: any) => (
-                <option key={s._id} value={s._id}>{s.name} ({s.supplierId})</option>
-              ))}
+              <option value="">Select Fabric Supplier...</option>
+              {(inventoryData?.fabrics || (Array.isArray(inventoryData) ? inventoryData : []))?.filter((f: any) => f.supplierName || f.partyName || f.supplierId)?.map((f: any) => {
+                const supName = f.supplierName || f.partyName || f.supplierId?.name || 'Unknown Supplier';
+                return (
+                  <option key={f._id} value={f._id}>
+                    {supName} ({f.name})
+                  </option>
+                );
+              })}
             </select>
             {errors.supplierId && <p className="text-xs text-rose-500">{errors.supplierId.message as string}</p>}
           </div>

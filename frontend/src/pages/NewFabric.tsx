@@ -4,8 +4,9 @@ import { z } from 'zod';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, Package, Camera, Upload, Trash2, Image as ImageIcon, X } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { createFabric, updateFabric } from '../lib/api';
+import api from '../lib/api';
 
 const fabricSchema = z.object({
   name: z.string().min(2, 'Name is required'),
@@ -13,12 +14,14 @@ const fabricSchema = z.object({
   material: z.string().optional(),
   color: z.string().optional(),
   brand: z.string().optional(),
-  partyName: z.string().optional(),
+  supplierName: z.string().optional(),
+  invoiceNumber: z.string().optional(),
   width: z.string().optional(),
   purchasePrice: z.string().optional(),
   sellingPrice: z.string().optional(),
   currentStock: z.string().min(1, 'Initial stock is required'),
   minimumStock: z.string().optional(),
+  amountPaid: z.string().optional(),
 });
 
 type FabricFormValues = z.infer<typeof fabricSchema>;
@@ -29,21 +32,24 @@ export default function NewFabric() {
   const editFabric = state?.fabric;
   const isEditMode = !!editFabric;
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FabricFormValues>({
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<FabricFormValues>({
     defaultValues: isEditMode ? {
       name: editFabric.name,
       category: editFabric.category,
       material: editFabric.material,
       color: editFabric.color,
       brand: editFabric.brand,
-      partyName: editFabric.partyName,
+      supplierName: editFabric.supplierName || editFabric.partyName || '',
+      invoiceNumber: editFabric.invoiceNumber || '',
       width: editFabric.width,
       purchasePrice: editFabric.purchasePrice ? String(editFabric.purchasePrice) : '',
       sellingPrice: editFabric.sellingPrice ? String(editFabric.sellingPrice) : '',
       currentStock: editFabric.totalAvailable ? String(editFabric.totalAvailable) : '',
       minimumStock: editFabric.minimumStock ? String(editFabric.minimumStock) : '',
+      amountPaid: editFabric.amountPaid ? String(editFabric.amountPaid) : '',
     } : {}
   });
+
   const queryClient = useQueryClient();
 
   const [imageUrl, setImageUrl] = useState<string | null>(isEditMode && editFabric.gallery?.length > 0 ? editFabric.gallery[0] : null);
@@ -112,6 +118,8 @@ export default function NewFabric() {
     mutationFn: (data: any) => isEditMode ? updateFabric(editFabric.fabricId || editFabric._id, data) : createFabric(data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['inventoryPaginated'] });
+      queryClient.invalidateQueries({ queryKey: ['supplierBills'] });
       queryClient.invalidateQueries({ queryKey: ['fabric', editFabric?.fabricId || editFabric?._id] });
       // navigate to the new fabric's details page
       if (data && data.fabricId) {
@@ -136,13 +144,15 @@ export default function NewFabric() {
       material: data.material,
       color: data.color,
       brand: data.brand,
-      partyName: data.partyName,
+      supplierName: data.supplierName,
+      invoiceNumber: data.invoiceNumber,
       width: data.width,
       purchasePrice: data.purchasePrice ? Number(data.purchasePrice) : 0,
       sellingPrice: data.sellingPrice ? Number(data.sellingPrice) : (data.purchasePrice ? Number(data.purchasePrice) : 0),
       pricePerMeter: data.sellingPrice ? Number(data.sellingPrice) : (data.purchasePrice ? Number(data.purchasePrice) : 0),
       totalAvailable: Number(data.currentStock),
       minimumStock: data.minimumStock ? Number(data.minimumStock) : 10,
+      amountPaid: data.amountPaid ? Number(data.amountPaid) : 0,
       imageUrl: imageUrl || undefined,
       gallery: imageUrl ? [imageUrl] : []
     } as any);
@@ -228,11 +238,20 @@ export default function NewFabric() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Party Name</label>
+              <label className="text-sm font-medium">Supplier Name</label>
               <input
-                {...register('partyName')}
+                {...register('supplierName')}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                 placeholder="e.g. ABC Textiles"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Invoice Number</label>
+              <input
+                {...register('invoiceNumber')}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                placeholder="e.g. INV-001"
               />
             </div>
 
@@ -280,6 +299,17 @@ export default function NewFabric() {
                 placeholder="e.g. 50"
               />
               {errors.currentStock && <p className="text-xs text-destructive">{errors.currentStock.message}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Advance Pay (₹)</label>
+              <input
+                {...register('amountPaid')}
+                type="number"
+                step="any"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                placeholder="e.g. 1000"
+              />
             </div>
             
           </div>

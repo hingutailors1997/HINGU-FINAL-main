@@ -60,8 +60,11 @@ class InventoryService {
     const sellingPrice = Number(data.sellingPrice || data.pricePerMeter || purchasePrice || 0);
     const pricePerMeter = Number(data.pricePerMeter || sellingPrice || purchasePrice || 0);
 
+    const invoiceNumber = data.invoiceNumber?.trim() || `AUTO-INV-${Date.now()}`;
+
     const newFabric = new FabricInventory({
       ...data,
+      invoiceNumber,
       fabricId: data.fabricId || fabricId,
       barcode: data.barcode || barcode,
       qrCode: data.qrCode || qrCode,

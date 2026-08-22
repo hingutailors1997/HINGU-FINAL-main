@@ -15,14 +15,15 @@ const FabricInventorySchema = new mongoose.Schema({
   barcode: { type: String, unique: true, sparse: true },
   qrCode: { type: String, unique: true, sparse: true },
   name: { type: String, required: true },
-  category: { type: String, required: true }, // Shirting, Suiting, etc.
-  material: { type: String }, // Cotton, Linen
+  category: { type: String, required: true },
+  material: { type: String },
   color: { type: String },
   brand: { type: String },
   partyName: { type: String },
   width: { type: String },
   supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
   supplierName: { type: String },
+  invoiceNumber: { type: String },
   purchasePrice: { type: Number, default: 0 },
   sellingPrice: { type: Number, default: 0 },
   pricePerMeter: { type: Number, default: 0 },
@@ -38,7 +39,7 @@ const FabricInventorySchema = new mongoose.Schema({
   status: { type: String, enum: ['Active', 'Low Stock', 'Out of Stock', 'Depleted', 'Reserved'], default: 'Active' },
   imageUrl: { type: String },
   gallery: [{ type: String }],
-  aiYieldRate: { type: Number, default: 2.2 } // Standard consumption rate in meters for garment calculation
+  aiYieldRate: { type: Number, default: 2.2 }
 }, { timestamps: true });
 
 // Explicit database indexes for Fabric Inventory (Production ERP Standard)
@@ -60,9 +61,9 @@ const StockHistorySchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   userName: { type: String },
   qtyBefore: { type: Number, required: true },
-  qtyChange: { type: Number, required: true }, // Negative for deduction, positive for addition
+  qtyChange: { type: Number, required: true },
   qtyRemaining: { type: Number, required: true },
-  reason: { type: String }, // 'Used for Order #123', 'Manual Adjustment'
+  reason: { type: String },
   orderNumber: { type: String },
   deviceUsed: { type: String }
 }, { timestamps: true });

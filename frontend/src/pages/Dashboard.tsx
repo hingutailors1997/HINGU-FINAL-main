@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useQuery } from '@tanstack/react-query';
-import { fetchOrders, fetchTransactions, fetchCustomers, scanBarcode } from '../lib/api';
+import api, { fetchOrders, fetchTransactions, fetchCustomers, scanBarcode } from '../lib/api';
 import Scanner from '../components/Scanner';
 import { generateDashboardPDF } from '../lib/pdfExport';
 import html2canvas from 'html2canvas';
@@ -44,24 +44,24 @@ function KPICard({ title, value, change, trend, icon: Icon, color = "primary" }:
 
 function PaymentBreakdownCard({ cashIn, cashOut, onlineIn, onlineOut }: any) {
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md flex flex-col justify-between">
-      <h3 className="text-[11px] font-bold text-muted-foreground tracking-tight uppercase mb-2">Cash vs Online Flow</h3>
-      <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+    <div className="rounded-xl border bg-card p-5 shadow-sm transition-all hover:shadow-md flex flex-col justify-between">
+      <h3 className="text-xs font-medium text-muted-foreground tracking-tight uppercase mb-3">Cash vs Online Flow</h3>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         <div>
-          <p className="text-[9px] text-emerald-600/70 font-bold uppercase mb-0.5">Cash In</p>
-          <p className="text-sm font-bold text-emerald-600">₹{cashIn.toLocaleString()}</p>
+          <p className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1 tracking-wider">Cash In</p>
+          <p className="text-lg font-bold text-emerald-600 tracking-tight">₹{cashIn.toLocaleString()}</p>
         </div>
         <div>
-          <p className="text-[9px] text-emerald-600/70 font-bold uppercase mb-0.5">Online In</p>
-          <p className="text-sm font-bold text-emerald-600">₹{onlineIn.toLocaleString()}</p>
+          <p className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1 tracking-wider">Online In</p>
+          <p className="text-lg font-bold text-emerald-600 tracking-tight">₹{onlineIn.toLocaleString()}</p>
         </div>
         <div>
-          <p className="text-[9px] text-rose-600/70 font-bold uppercase mb-0.5">Cash Out</p>
-          <p className="text-sm font-bold text-rose-600">₹{cashOut.toLocaleString()}</p>
+          <p className="text-[10px] text-rose-600/80 font-bold uppercase mb-1 tracking-wider">Cash Out</p>
+          <p className="text-lg font-bold text-rose-600 tracking-tight">₹{cashOut.toLocaleString()}</p>
         </div>
         <div>
-          <p className="text-[9px] text-rose-600/70 font-bold uppercase mb-0.5">Online Out</p>
-          <p className="text-sm font-bold text-rose-600">₹{onlineOut.toLocaleString()}</p>
+          <p className="text-[10px] text-rose-600/80 font-bold uppercase mb-1 tracking-wider">Online Out</p>
+          <p className="text-lg font-bold text-rose-600 tracking-tight">₹{onlineOut.toLocaleString()}</p>
         </div>
       </div>
     </div>
@@ -82,12 +82,14 @@ export default function Dashboard() {
   const { data: ordersData, isLoading: isOrdersLoading } = useQuery({ queryKey: ['orders'], queryFn: fetchOrders });
   const { data: txsData, isLoading: isTxsLoading } = useQuery({ queryKey: ['transactions'], queryFn: fetchTransactions });
   const { data: customersData, isLoading: isCustomersLoading } = useQuery({ queryKey: ['customers'], queryFn: fetchCustomers });
+  const { data: billsData, isLoading: isBillsLoading } = useQuery({ queryKey: ['supplierBills'], queryFn: async () => { const res = await api.get('/stock/bills'); return res.data; } });
   
-  const isLoading = isOrdersLoading || isTxsLoading || isCustomersLoading;
+  const isLoading = isOrdersLoading || isTxsLoading || isCustomersLoading || isBillsLoading;
 
   const allOrders = Array.isArray(ordersData) ? ordersData : [];
   const allTxs = Array.isArray(txsData) ? txsData : [];
   const allCustomers = Array.isArray(customersData) ? customersData : [];
+  const allBills = Array.isArray(billsData) ? billsData : [];
 
   const filterByDate = (items: any[]) => {
     return items.filter(item => {
@@ -520,7 +522,55 @@ export default function Dashboard() {
           </div>
         </div>
 
-        
+        {/* Supplier Payment Dues */}
+        <div className="rounded-xl border bg-card p-6 shadow-sm md:col-span-6 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-semibold tracking-tight text-lg">Supplier Payment Dues</h3>
+              <p className="text-xs text-muted-foreground mt-1">Pending bills and deadlines</p>
+            </div>
+            <a href="/stock" className="text-xs font-medium text-primary hover:underline">Manage Bills</a>
+          </div>
+          <div className="flex-1 overflow-auto pr-2">
+            <div className="space-y-4">
+              {allBills.filter((b: any) => b.status !== 'Paid').sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()).slice(0, 5).map((bill: any) => {
+                const dueTime = new Date(bill.dueDate).getTime() - new Date().getTime();
+                const daysLeft = Math.ceil(dueTime / (1000 * 3600 * 24));
+                const isOverdue = daysLeft < 0;
+                
+                return (
+                  <div key={bill._id} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
+                    <div>
+                      <p className="text-sm font-medium">{bill.supplierId?.name || 'Unknown Supplier'}</p>
+                      <p className="text-xs text-muted-foreground">{bill.billNumber} • ₹{((bill.totalAmount || 0) - (bill.amountPaid || 0)).toLocaleString()} pending</p>
+                    </div>
+                    <div className="text-right">
+                      {isOverdue ? (
+                        <span className="inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
+                          Overdue by {Math.abs(daysLeft)} days
+                        </span>
+                      ) : daysLeft === 0 ? (
+                        <span className="inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                          Due Today
+                        </span>
+                      ) : (
+                        <span className="inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                          {daysLeft} days left
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {allBills.filter((b: any) => b.status !== 'Paid').length === 0 && (
+                <div className="text-center py-8 text-muted-foreground text-sm flex flex-col items-center gap-2">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-500/50" />
+                  All supplier bills are paid up!
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
       </div>
     </div>

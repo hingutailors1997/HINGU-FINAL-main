@@ -174,9 +174,13 @@ const FabricDetails = () => {
                   <p className="text-xs text-muted-foreground uppercase font-semibold">Brand</p>
                   <p className="font-medium text-foreground">{fabric.brand || 'N/A'}</p>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground uppercase font-semibold">Party Name</p>
-                  <p className="font-medium text-foreground">{fabric.partyName || 'N/A'}</p>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase font-semibold">Supplier Name</p>
+                  <p className="font-medium text-sm text-foreground">{fabric.supplierId?.name || fabric.supplierName || fabric.partyName || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase font-semibold">Invoice Number</p>
+                  <p className="font-medium text-sm text-foreground">{fabric.invoiceNumber || 'N/A'}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground uppercase font-semibold">Width</p>

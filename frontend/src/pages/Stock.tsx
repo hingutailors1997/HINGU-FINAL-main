@@ -33,7 +33,8 @@ export default function Stock() {
 
   const { data: inventoryData, isLoading } = useQuery({
     queryKey: ['inventoryPaginated', page, searchTerm, lowStockOnly],
-    queryFn: () => fetchInventoryPaginated({ page, limit: 25, search: searchTerm, lowStockOnly })
+    queryFn: () => fetchInventoryPaginated({ page, limit: 25, search: searchTerm, lowStockOnly }),
+    staleTime: 5 * 60 * 1000 // 5 minutes cache
   });
 
   const stock = inventoryData?.fabrics || [];

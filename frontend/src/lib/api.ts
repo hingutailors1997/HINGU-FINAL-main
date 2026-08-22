@@ -275,6 +275,11 @@ export const checkDueBills = async () => {
   return data;
 };
 
+export const deleteSupplierBill = async (id: string) => {
+  const { data } = await api.delete(`/stock/bills/${id}`);
+  return data;
+};
+
 // Order APIs (Phase 4: Configurable Workflow Engine & Tailor Suite)
 export const fetchWorkflowStages = async () => {
   const { data } = await api.get('/orders/stages');
