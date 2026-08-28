@@ -60,15 +60,8 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
     };
   }, []);
 
-  const sessionStartNotesRef = useRef('');
-
-  const handleVoiceSessionUpdate = useCallback((sessionFinalText: string) => {
-    const startNotes = sessionStartNotesRef.current;
-    const updated = startNotes ? `${startNotes} ${sessionFinalText.trim()}` : sessionFinalText.trim();
-    setNotes(updated);
-    setCurrentValues(curr => ({ ...curr, _notes: updated }));
-    setHasUnsavedChanges(true);
-  }, []);
+  const lastFinalTranscriptRef = useRef('');
+  const lastResultTimeRef = useRef(0);
 
   const isManualStopRef = useRef(false);
 
@@ -89,22 +82,36 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
       const recognition = recognitionRef.current;
       recognition.lang = voiceLang;
       
-      sessionStartNotesRef.current = notes; // Capture notes before session starts
-
       recognition.onresult = (event: any) => {
-        let finalTranscript = '';
+        let newFinalText = '';
         let interimTranscript = '';
 
-        // Iterate from 0 to reconstruct the exact session transcript, bypassing Android duplicate event bugs
-        for (let i = 0; i < event.results.length; ++i) {
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
+            newFinalText += event.results[i][0].transcript;
           } else {
             interimTranscript += event.results[i][0].transcript;
           }
         }
         
-        handleVoiceSessionUpdate(finalTranscript);
+        if (newFinalText) {
+          const trimmed = newFinalText.trim();
+          const now = Date.now();
+          const lastText = lastFinalTranscriptRef.current;
+          const lastTime = lastResultTimeRef.current;
+          
+          // Deduplicate: If it's the EXACT same phrase within 800ms, ignore it (Android bug fix)
+          if (trimmed && (trimmed !== lastText || (now - lastTime) > 800)) {
+            setNotes(prev => {
+              const updated = prev ? `${prev} ${trimmed}` : trimmed;
+              setCurrentValues(curr => ({ ...curr, _notes: updated }));
+              setHasUnsavedChanges(true);
+              return updated;
+            });
+            lastFinalTranscriptRef.current = trimmed;
+            lastResultTimeRef.current = now;
+          }
+        }
         setInterimText(interimTranscript);
       };
 
@@ -118,8 +125,9 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
       };
 
       recognition.onend = () => {
-        if (!isManualStopRef.current) {
-          // Auto-restart for iOS to simulate continuous mode
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (!isManualStopRef.current && !isIOS) {
+          // Auto-restart for Android to simulate true continuous mode if it drops
           try {
             recognition.start();
             return;
