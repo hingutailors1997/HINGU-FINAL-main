@@ -40,18 +40,7 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setSpeechSupported(false);
-      return;
     }
-    const recognition = new SpeechRecognition();
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    
-    try {
-      // iOS Safari often fails if continuous is true
-      recognition.continuous = !isIOS;
-    } catch (e) {}
-    
-    recognition.interimResults = true;
-    recognitionRef.current = recognition;
 
     return () => {
       if (recognitionRef.current) {
@@ -66,7 +55,10 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
   const isManualStopRef = useRef(false);
 
   const toggleListening = () => {
-    if (!recognitionRef.current) return;
+    if (!speechSupported) {
+      showToast('Speech recognition is not supported in this browser.', 'error');
+      return;
+    }
     
     if (isListening) {
       isManualStopRef.current = true;
@@ -79,39 +71,42 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
     isManualStopRef.current = false;
 
     try {
-      const recognition = recognitionRef.current;
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      try { recognition.continuous = !isIOS; } catch(e) {}
+      recognition.interimResults = true;
+      recognitionRef.current = recognition;
+
       recognition.lang = voiceLang;
       
       recognition.onresult = (event: any) => {
-        let newFinalText = '';
         let interimTranscript = '';
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
-            newFinalText += event.results[i][0].transcript;
+            const word = event.results[i][0].transcript.trim();
+            const now = Date.now();
+            const lastText = lastFinalTranscriptRef.current;
+            const lastTime = lastResultTimeRef.current;
+            
+            // Deduplicate per word: If it's the EXACT same phrase within 800ms, ignore it (Android bug fix)
+            if (word && (word !== lastText || (now - lastTime) > 800)) {
+              setNotes(prev => {
+                const updated = prev ? `${prev} ${word}` : word;
+                setCurrentValues(curr => ({ ...curr, _notes: updated }));
+                setHasUnsavedChanges(true);
+                return updated;
+              });
+              lastFinalTranscriptRef.current = word;
+              lastResultTimeRef.current = now;
+            }
           } else {
             interimTranscript += event.results[i][0].transcript;
           }
         }
         
-        if (newFinalText) {
-          const trimmed = newFinalText.trim();
-          const now = Date.now();
-          const lastText = lastFinalTranscriptRef.current;
-          const lastTime = lastResultTimeRef.current;
-          
-          // Deduplicate: If it's the EXACT same phrase within 800ms, ignore it (Android bug fix)
-          if (trimmed && (trimmed !== lastText || (now - lastTime) > 800)) {
-            setNotes(prev => {
-              const updated = prev ? `${prev} ${trimmed}` : trimmed;
-              setCurrentValues(curr => ({ ...curr, _notes: updated }));
-              setHasUnsavedChanges(true);
-              return updated;
-            });
-            lastFinalTranscriptRef.current = trimmed;
-            lastResultTimeRef.current = now;
-          }
-        }
         setInterimText(interimTranscript);
       };
 
