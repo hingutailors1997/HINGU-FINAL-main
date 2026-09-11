@@ -51,6 +51,7 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
 
   const lastFinalTranscriptRef = useRef('');
   const lastResultTimeRef = useRef(0);
+  const gotResultRef = useRef(false);
 
   const isManualStopRef = useRef(false);
 
@@ -72,67 +73,107 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
 
     try {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      try { recognition.continuous = !isIOS; } catch(e) {}
-      recognition.interimResults = true;
-      recognitionRef.current = recognition;
 
-      recognition.lang = voiceLang;
-      
-      recognition.onresult = (event: any) => {
-        let interimTranscript = '';
+      const createRecognition = () => {
+        const recognition = new SpeechRecognition();
+        try { recognition.continuous = !isIOS; } catch(e) {}
+        // iOS Safari has buggy interimResults for non-English locales (e.g. gu-IN)
+        // Disabling it for non-English on iOS prevents silent failures
+        recognition.interimResults = isIOS && voiceLang !== 'en-US' ? false : true;
+        recognition.lang = voiceLang;
+        return recognition;
+      };
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            const word = event.results[i][0].transcript.trim();
-            const now = Date.now();
-            const lastText = lastFinalTranscriptRef.current;
-            const lastTime = lastResultTimeRef.current;
-            
-            // Deduplicate per word: If it's the EXACT same phrase within 800ms, ignore it (Android bug fix)
-            if (word && (word !== lastText || (now - lastTime) > 800)) {
-              setNotes(prev => {
-                const updated = prev ? `${prev} ${word}` : word;
-                setCurrentValues(curr => ({ ...curr, _notes: updated }));
-                setHasUnsavedChanges(true);
-                return updated;
-              });
-              lastFinalTranscriptRef.current = word;
-              lastResultTimeRef.current = now;
+      const attachHandlers = (recognition: any) => {
+        recognition.onresult = (event: any) => {
+          gotResultRef.current = true;
+          let interimTranscript = '';
+
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              const word = event.results[i][0].transcript.trim();
+              const now = Date.now();
+              const lastText = lastFinalTranscriptRef.current;
+              const lastTime = lastResultTimeRef.current;
+              
+              // Deduplicate per word: If it's the EXACT same phrase within 800ms, ignore it (Android bug fix)
+              if (word && (word !== lastText || (now - lastTime) > 800)) {
+                setNotes(prev => {
+                  const updated = prev ? `${prev} ${word}` : word;
+                  setCurrentValues(curr => ({ ...curr, _notes: updated }));
+                  setHasUnsavedChanges(true);
+                  return updated;
+                });
+                lastFinalTranscriptRef.current = word;
+                lastResultTimeRef.current = now;
+              }
+            } else {
+              interimTranscript += event.results[i][0].transcript;
             }
+          }
+          
+          setInterimText(interimTranscript);
+        };
+
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error', event.error);
+          if (event.error === 'not-allowed') {
+            showToast('Microphone permission is required for voice input.', 'error');
+            setIsListening(false);
+            setInterimText('');
+          } else if (event.error === 'language-not-supported') {
+            showToast(`Speech recognition is not available for ${voiceLang === 'gu-IN' ? 'Gujarati' : 'English'} on this device. Please try the other language.`, 'error');
+            setIsListening(false);
+            setInterimText('');
+          } else if (event.error === 'no-speech') {
+            // On iOS, no-speech fires frequently — don't stop listening, let onend handle restart
+            console.log('No speech detected, waiting for onend to restart...');
+          } else if (event.error === 'aborted') {
+            // Aborted is expected during restart cycles, ignore it
           } else {
-            interimTranscript += event.results[i][0].transcript;
+            setIsListening(false);
+            setInterimText('');
           }
-        }
-        
-        setInterimText(interimTranscript);
+        };
+
+        recognition.onend = () => {
+          if (!isManualStopRef.current) {
+            // Auto-restart to simulate continuous mode
+            try {
+              if (isIOS) {
+                // On iOS, create a fresh recognition instance for reliable restart
+                const newRecognition = createRecognition();
+                attachHandlers(newRecognition);
+                recognitionRef.current = newRecognition;
+                gotResultRef.current = false;
+                setTimeout(() => {
+                  if (isManualStopRef.current) return;
+                  try {
+                    newRecognition.start();
+                  } catch(e) {
+                    console.error('iOS auto-restart failed', e);
+                    setIsListening(false);
+                    setInterimText('');
+                  }
+                }, 300);
+              } else {
+                recognition.start();
+              }
+              return;
+            } catch(e) {
+              console.error('Auto-restart failed', e);
+            }
+          }
+          setIsListening(false);
+          setInterimText('');
+        };
       };
 
-      recognition.onerror = (event: any) => {
-        console.error('Speech recognition error', event.error);
-        if (event.error === 'not-allowed') {
-          showToast('Microphone permission is required for voice input.', 'error');
-        }
-        setIsListening(false);
-        setInterimText('');
-      };
-
-      recognition.onend = () => {
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        if (!isManualStopRef.current && !isIOS) {
-          // Auto-restart for Android to simulate true continuous mode if it drops
-          try {
-            recognition.start();
-            return;
-          } catch(e) {
-            console.error('Auto-restart failed', e);
-          }
-        }
-        setIsListening(false);
-        setInterimText('');
-      };
+      const recognition = createRecognition();
+      attachHandlers(recognition);
+      recognitionRef.current = recognition;
+      gotResultRef.current = false;
 
       recognition.start();
       setIsListening(true);
