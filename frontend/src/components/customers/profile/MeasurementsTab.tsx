@@ -533,23 +533,38 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
                       <option value="en-US">English</option>
                     </select>
                     
-                    <button
-                      onClick={toggleListening}
-                      className={cn(
-                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-extrabold transition-all",
-                        isListening 
-                          ? "bg-rose-100 text-rose-700 border border-rose-200 animate-pulse" 
-                          : "bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200"
-                      )}
-                      title="Voice Input"
-                      type="button"
-                    >
-                      {isListening ? (
-                        <><MicOff className="h-3 w-3" /> Listening...</>
-                      ) : (
-                        <><Mic className="h-3 w-3" /> Voice</>
-                      )}
-                    </button>
+                    {(/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) && voiceLang === 'gu-IN' ? (
+                      <button
+                        onClick={() => {
+                          const ta = document.getElementById('master_notes');
+                          if (ta) ta.focus();
+                          showToast('Apple does not support web Gujarati. Tap the Microphone icon on your iPhone Keyboard instead!', 'info');
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 transition-all"
+                        title="Use Keyboard Mic"
+                        type="button"
+                      >
+                        <Mic className="h-3 w-3" /> Keyboard Mic
+                      </button>
+                    ) : (
+                      <button
+                        onClick={toggleListening}
+                        className={cn(
+                          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-extrabold transition-all",
+                          isListening 
+                            ? "bg-rose-100 text-rose-700 border border-rose-200 animate-pulse" 
+                            : "bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200"
+                        )}
+                        title="Voice Input"
+                        type="button"
+                      >
+                        {isListening ? (
+                          <><MicOff className="h-3 w-3" /> Listening...</>
+                        ) : (
+                          <><Mic className="h-3 w-3" /> Voice</>
+                        )}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
