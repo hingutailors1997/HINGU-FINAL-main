@@ -61,6 +61,13 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
       return;
     }
     
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    
+    if (isIOS && voiceLang === 'gu-IN') {
+      showToast('Apple iOS does not support Gujarati web voice. Please tap the text box and use the Microphone icon on your iPhone Keyboard!', 'error');
+      return;
+    }
+    
     if (isListening) {
       isManualStopRef.current = true;
       try { recognitionRef.current.stop(); } catch(e){}
@@ -73,7 +80,6 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
 
     try {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
       const createRecognition = () => {
         const recognition = new SpeechRecognition();
