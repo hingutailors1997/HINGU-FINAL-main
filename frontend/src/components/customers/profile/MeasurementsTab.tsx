@@ -49,8 +49,7 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
     };
   }, []);
 
-  const lastFinalTranscriptRef = useRef('');
-  const lastResultTimeRef = useRef(0);
+  const sessionStartNotesRef = useRef('');
   const gotResultRef = useRef(false);
 
   const isManualStopRef = useRef(false);
@@ -94,29 +93,26 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
       const attachHandlers = (recognition: any) => {
         recognition.onresult = (event: any) => {
           gotResultRef.current = true;
+          let sessionFinalText = '';
           let interimTranscript = '';
 
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
+          for (let i = 0; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
-              const word = event.results[i][0].transcript.trim();
-              const now = Date.now();
-              const lastText = lastFinalTranscriptRef.current;
-              const lastTime = lastResultTimeRef.current;
-              
-              // Deduplicate per word: If it's the EXACT same phrase within 800ms, ignore it (Android bug fix)
-              if (word && (word !== lastText || (now - lastTime) > 800)) {
-                setNotes(prev => {
-                  const updated = prev ? `${prev} ${word}` : word;
-                  setCurrentValues(curr => ({ ...curr, _notes: updated }));
-                  setHasUnsavedChanges(true);
-                  return updated;
-                });
-                lastFinalTranscriptRef.current = word;
-                lastResultTimeRef.current = now;
-              }
+              sessionFinalText += event.results[i][0].transcript.trim() + ' ';
             } else {
               interimTranscript += event.results[i][0].transcript;
             }
+          }
+          
+          if (sessionFinalText) {
+            setNotes(prev => {
+              // We reconstruct the entire text from the session start state + the complete session results
+              const baseNotes = sessionStartNotesRef.current ? sessionStartNotesRef.current.trim() + ' ' : '';
+              const updated = baseNotes + sessionFinalText.trim();
+              setCurrentValues(curr => ({ ...curr, _notes: updated }));
+              setHasUnsavedChanges(true);
+              return updated;
+            });
           }
           
           setInterimText(interimTranscript);
@@ -125,10 +121,12 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
         recognition.onerror = (event: any) => {
           console.error('Speech recognition error', event.error);
           if (event.error === 'not-allowed') {
+            isManualStopRef.current = true;
             showToast('Microphone permission is required for voice input.', 'error');
             setIsListening(false);
             setInterimText('');
           } else if (event.error === 'language-not-supported') {
+            isManualStopRef.current = true;
             showToast(`Speech recognition is not available for ${voiceLang === 'gu-IN' ? 'Gujarati' : 'English'} on this device. Please try the other language.`, 'error');
             setIsListening(false);
             setInterimText('');
@@ -138,6 +136,7 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
           } else if (event.error === 'aborted') {
             // Aborted is expected during restart cycles, ignore it
           } else {
+            isManualStopRef.current = true;
             setIsListening(false);
             setInterimText('');
           }
@@ -164,6 +163,10 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
                   }
                 }, 300);
               } else {
+                setNotes(prev => {
+                  sessionStartNotesRef.current = prev;
+                  return prev;
+                });
                 recognition.start();
               }
               return;
@@ -180,6 +183,7 @@ export default function MeasurementsTab({ customerId, customer }: Props) {
       attachHandlers(recognition);
       recognitionRef.current = recognition;
       gotResultRef.current = false;
+      sessionStartNotesRef.current = notes;
 
       recognition.start();
       setIsListening(true);
